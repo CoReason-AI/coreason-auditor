@@ -15,6 +15,7 @@ class RequirementStatus(str, Enum):
 class Requirement(BaseModel):
     req_id: str = Field(..., description="Requirement Identifier, e.g., '1.1'")
     desc: str = Field(..., description="Description of the requirement")
+    critical: bool = Field(default=True, description="Whether this requirement is critical for compliance")
 
 
 class ComplianceTest(BaseModel):
@@ -65,6 +66,20 @@ class TraceabilityMatrix(BaseModel):
                     raise ValueError(f"Test ID '{test_id}' mapped to Requirement '{req_id}' not found in tests list.")
 
         return self
+
+
+class BOMInput(BaseModel):
+    """
+    Formalized input for AI-BOM generation.
+    Decouples the generator from specific data sources.
+    """
+
+    model_name: str = Field(..., description="Name of the base model, e.g., 'meta-llama-3'")
+    model_version: str = Field(..., description="Version or tag of the model")
+    model_sha: str = Field(..., description="SHA-256 hash of the model artifacts")
+    adapter_sha: Optional[str] = Field(default=None, description="SHA-256 hash of the LoRA adapter if present")
+    data_lineage: List[str] = Field(..., description="List of coreason-refinery ingestion job IDs")
+    software_dependencies: List[str] = Field(..., description="List of pip installed packages (name==version)")
 
 
 class AIBOMObject(BaseModel):
