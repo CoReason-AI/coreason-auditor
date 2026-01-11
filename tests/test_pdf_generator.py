@@ -111,6 +111,11 @@ def test_generate_report_content(tmp_path: Any, sample_audit_package: AuditPacka
     assert "sess-001" in text
     assert "Toxic output detected" in text
 
+    # Check Signature Page content
+    assert "Electronic Signature Page" in text
+    assert "Signed By: AutomatedTest" in text
+    assert "Signature Hash: dummysig" in text
+
 
 def test_generate_report_empty_deviations(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
     if PdfReader is None:
@@ -260,8 +265,8 @@ def test_large_report_pagination(tmp_path: Any, sample_audit_package: AuditPacka
     if PdfReader is None:
         pytest.skip("pypdf not installed")
 
-    # Generate 100 requirements and deviations
-    for i in range(100):
+    # Generate 200 requirements and deviations to ensure > 2 pages
+    for i in range(200):
         req_id = f"L.{i}"
         sample_audit_package.rtm.requirements.append(
             Requirement(req_id=req_id, desc=f"Large Requirement {i}", critical=False)
@@ -281,13 +286,19 @@ def test_large_report_pagination(tmp_path: Any, sample_audit_package: AuditPacka
 
     reader = PdfReader(str(output_file))
     # Should have multiple pages.
-    # 100 rows should take ~3-5 pages.
-    assert len(reader.pages) > 1
+    # 200 rows should take multiple pages.
+    assert len(reader.pages) > 2
 
-    # Check if "L.99" exists in the document text.
-    # The requirement might be on a different page than the deviation.
+    # Check headers and footers on a later page (e.g. page 2, index 1)
+    page_2_text = reader.pages[1].extract_text()
+    assert "CoReason Audit Report" in page_2_text
+    assert "Confidential - CoReason Ecosystem" in page_2_text
+    # Check page number formatting if pypdf extracts it cleanly (sometimes it's tricky)
+    # But at least the static text should be there.
+
+    # Verify content
     full_text = ""
     for page in reader.pages:
         full_text += page.extract_text()
 
-    assert "L.99" in full_text
+    assert "L.199" in full_text
