@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -21,6 +21,24 @@ class ComplianceTest(BaseModel):
     test_id: str = Field(..., description="Test Identifier, e.g., 'T-100'")
     result: str = Field(..., description="Result of the test, e.g., 'PASS' or 'FAIL'")
     evidence: Optional[str] = Field(default=None, description="Link to run log or other evidence")
+
+
+class AgentConfig(BaseModel):
+    """
+    Represents the input configuration (agent.yaml).
+    """
+
+    requirements: List[Requirement] = Field(..., description="List of requirements")
+    coverage_map: Dict[str, List[str]] = Field(..., description="Map of Req ID to list of Test IDs")
+
+
+class AssayReport(BaseModel):
+    """
+    Represents the input test results (assay_report.json).
+    """
+
+    results: List[ComplianceTest] = Field(..., description="List of test results")
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class TraceabilityMatrix(BaseModel):
