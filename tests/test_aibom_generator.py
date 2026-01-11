@@ -128,6 +128,24 @@ class TestAIBOMGenerator:
         # "weird-pkg==1.0==build" -> name="weird-pkg", version="1.0==build" (split on first '==')
         assert lib_comps["weird-pkg"] == "1.0==build"
 
+    def test_unversioned_dependency_coverage(self) -> None:
+        """Explicitly test dependency with no version to guarantee 'else' block coverage."""
+        input_data = BOMInput(
+            model_name="coverage-check",
+            model_version="0.1",
+            model_sha="sha256:000",
+            data_lineage=[],
+            software_dependencies=["just-a-name"],
+        )
+        generator = AIBOMGenerator()
+        result = generator.generate_bom(input_data)
+        components = result.cyclonedx_bom.get("components", [])
+        lib_comp = next((c for c in components if c["name"] == "just-a-name"), None)
+
+        assert lib_comp is not None
+        assert lib_comp["version"] == "unknown"
+        assert lib_comp["type"] == "library"
+
     def test_edge_case_optional_adapter(self) -> None:
         """Test that optional adapter_sha is handled correctly (not added to properties)."""
         input_data = BOMInput(
