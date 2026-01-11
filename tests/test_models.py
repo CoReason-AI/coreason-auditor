@@ -7,8 +7,12 @@ from coreason_auditor.models import (
     AIBOMObject,
     AuditPackage,
     ComplianceTest,
+    EventType,
     Requirement,
     RequirementStatus,
+    RiskLevel,
+    Session,
+    SessionEvent,
     TraceabilityMatrix,
 )
 from pydantic import ValidationError
@@ -18,6 +22,35 @@ def test_requirement_status_enum() -> None:
     assert RequirementStatus.COVERED_PASSED.value == "COVERED_PASSED"
     assert RequirementStatus.COVERED_FAILED.value == "COVERED_FAILED"
     assert RequirementStatus.UNCOVERED.value == "UNCOVERED"
+
+
+def test_risk_level_enum() -> None:
+    assert RiskLevel.LOW.value == "LOW"
+    assert RiskLevel.CRITICAL.value == "CRITICAL"
+
+
+def test_event_type_enum() -> None:
+    assert EventType.INPUT.value == "INPUT"
+    assert EventType.OUTPUT.value == "OUTPUT"
+
+
+def test_session_models_valid() -> None:
+    event = SessionEvent(
+        timestamp=datetime.now(timezone.utc),
+        event_type=EventType.INPUT,
+        content="User prompt",
+        metadata={"tokens": 10},
+    )
+    session = Session(
+        session_id="sess-001",
+        timestamp=datetime.now(timezone.utc),
+        risk_level=RiskLevel.HIGH,
+        violation_summary="Bad output",
+        events=[event],
+    )
+    assert session.session_id == "sess-001"
+    assert session.events[0].content == "User prompt"
+    assert session.risk_level == RiskLevel.HIGH
 
 
 def test_traceability_matrix_valid() -> None:
@@ -153,6 +186,14 @@ def test_complex_scenario() -> None:
         },
     )
 
+    session = Session(
+        session_id="sess-555",
+        timestamp=datetime.now(timezone.utc),
+        risk_level=RiskLevel.HIGH,
+        violation_summary="Toxic Prompt Refusal",
+        violation_type="Safety",
+    )
+
     pkg = AuditPackage(
         id=uuid4(),
         agent_version="2.1.0-RC1",
@@ -160,7 +201,7 @@ def test_complex_scenario() -> None:
         generated_by="CI/CD Pipeline",
         bom=bom,
         rtm=tm,
-        deviation_report=[{"session_id": "sess-555", "reason": "Toxic Prompt Refusal"}],
+        deviation_report=[session],
         human_interventions=5,
         document_hash="sha256:deadbeef",
         electronic_signature="sig:signed_by_admin",
@@ -174,6 +215,8 @@ def test_complex_scenario() -> None:
     assert len(pkg_loaded.rtm.tests) == 3
     assert pkg_loaded.rtm.coverage_map["1.2"] == ["T-101", "T-102"]
     assert pkg_loaded.bom.cyclonedx_bom["components"][0]["name"] == "torch"
+    assert pkg_loaded.deviation_report[0].session_id == "sess-555"
+    assert pkg_loaded.deviation_report[0].risk_level == RiskLevel.HIGH
 
 
 def test_json_serialization() -> None:

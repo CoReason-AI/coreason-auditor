@@ -16,6 +16,8 @@ from coreason_auditor.models import (
     ComplianceTest,
     Requirement,
     RequirementStatus,
+    RiskLevel,
+    Session,
     TraceabilityMatrix,
 )
 from coreason_auditor.pdf_generator import PDFReportGenerator
@@ -48,12 +50,13 @@ def sample_audit_package() -> AuditPackage:
     )
 
     deviations = [
-        {
-            "session_id": "sess-001",
-            "timestamp": "2023-10-27 10:00:00",
-            "risk_level": "High",
-            "violation_summary": "Toxic output detected",
-        }
+        Session(
+            session_id="sess-001",
+            timestamp=datetime(2023, 10, 27, 10, 0, 0, tzinfo=timezone.utc),
+            risk_level=RiskLevel.HIGH,
+            violation_summary="Toxic output detected",
+            violation_type="Safety",
+        )
     ]
 
     return AuditPackage(
@@ -110,6 +113,7 @@ def test_generate_report_content(tmp_path: Any, sample_audit_package: AuditPacka
     # Check Deviations
     assert "sess-001" in text
     assert "Toxic output detected" in text
+    assert "Safety" in text
 
     # Check Signature Page content
     assert "Electronic Signature Page" in text
@@ -227,12 +231,12 @@ def test_pdf_rendering_robustness(tmp_path: Any, sample_audit_package: AuditPack
 
     # Inject dangerous deviation
     sample_audit_package.deviation_report.append(
-        {
-            "session_id": "hack-001",
-            "timestamp": "now",
-            "risk_level": "Critical",
-            "violation_summary": "User said: <img src=x onerror=alert(1)>",
-        }
+        Session(
+            session_id="hack-001",
+            timestamp=datetime.now(timezone.utc),
+            risk_level=RiskLevel.CRITICAL,
+            violation_summary="User said: <img src=x onerror=alert(1)>",
+        )
     )
 
     # Ensure mapped tests (empty list is fine for X.1/X.2 => UNCOVERED)
@@ -272,12 +276,12 @@ def test_large_report_pagination(tmp_path: Any, sample_audit_package: AuditPacka
             Requirement(req_id=req_id, desc=f"Large Requirement {i}", critical=False)
         )
         sample_audit_package.deviation_report.append(
-            {
-                "session_id": f"sess-{i}",
-                "timestamp": "2023-01-01",
-                "risk_level": "Low",
-                "violation_summary": f"Violation {i}",
-            }
+            Session(
+                session_id=f"sess-{i}",
+                timestamp=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+                risk_level=RiskLevel.LOW,
+                violation_summary=f"Violation {i}",
+            )
         )
 
     output_file = tmp_path / "large_report.pdf"
@@ -353,12 +357,12 @@ def test_long_text_cell_behavior(tmp_path: Any, sample_audit_package: AuditPacka
     long_summary = "Deviation Detail:\n" + "\n".join([f"- Detail point {i}" for i in range(20)])
 
     sample_audit_package.deviation_report.append(
-        {
-            "session_id": "sess-long-text",
-            "timestamp": "2023-01-01",
-            "risk_level": "Medium",
-            "violation_summary": long_summary,
-        }
+        Session(
+            session_id="sess-long-text",
+            timestamp=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            risk_level=RiskLevel.MEDIUM,
+            violation_summary=long_summary,
+        )
     )
 
     output_file = tmp_path / "long_cell.pdf"

@@ -12,6 +12,37 @@ class RequirementStatus(str, Enum):
     UNCOVERED = "UNCOVERED"
 
 
+class RiskLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class EventType(str, Enum):
+    INPUT = "INPUT"
+    THOUGHT = "THOUGHT"
+    TOOL = "TOOL"
+    OUTPUT = "OUTPUT"
+
+
+class SessionEvent(BaseModel):
+    timestamp: datetime = Field(..., description="Timestamp of the event")
+    event_type: EventType = Field(..., description="Type of the event")
+    content: str = Field(..., description="Content of the event")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+
+class Session(BaseModel):
+    session_id: str = Field(..., description="Unique Session Identifier")
+    user_id: Optional[str] = Field(default=None, description="User Identifier")
+    timestamp: datetime = Field(..., description="Start timestamp of the session")
+    risk_level: RiskLevel = Field(default=RiskLevel.LOW, description="Risk level of the session")
+    violation_summary: str = Field(..., description="Summary of the violation")
+    violation_type: Optional[str] = Field(default=None, description="Type/Category of the violation")
+    events: List[SessionEvent] = Field(default_factory=list, description="List of events in the session")
+
+
 class Requirement(BaseModel):
     req_id: str = Field(..., description="Requirement Identifier, e.g., '1.1'")
     desc: str = Field(..., description="Description of the requirement")
@@ -104,7 +135,7 @@ class AuditPackage(BaseModel):
     # The Components
     bom: AIBOMObject  # The Ingredients
     rtm: TraceabilityMatrix  # The Tests
-    deviation_report: List[Dict[str, Any]]  # The Failures
+    deviation_report: List[Session]  # The Failures
     human_interventions: int  # Count of HITL events
 
     # The Seal
