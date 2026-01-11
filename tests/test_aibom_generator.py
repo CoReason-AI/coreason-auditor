@@ -96,3 +96,103 @@ class TestAIBOMGenerator:
 
         req_non_critical = Requirement(req_id="1.2", desc="Optional", critical=False)
         assert req_non_critical.critical is False
+
+    def test_edge_case_dependency_parsing(self) -> None:
+        """Test fallback behavior for weird dependency strings."""
+        input_data = BOMInput(
+            model_name="test-parsing",
+            model_version="1.0",
+            model_sha="sha256:111",
+            data_lineage=[],
+            software_dependencies=[
+                "simple-pkg",
+                "versioned-pkg==1.2.3",
+                "complex-pkg>=2.0",
+                "weird-pkg==1.0==build",
+            ],
+        )
+        generator = AIBOMGenerator()
+        result = generator.generate_bom(input_data)
+        components = result.cyclonedx_bom.get("components", [])
+        lib_comps = {c["name"]: c["version"] for c in components if c["type"] == "library"}
+
+        # "simple-pkg" -> name="simple-pkg", version="unknown" (no '==')
+        assert lib_comps["simple-pkg"] == "unknown"
+
+        # "versioned-pkg==1.2.3" -> name="versioned-pkg", version="1.2.3"
+        assert lib_comps["versioned-pkg"] == "1.2.3"
+
+        # "complex-pkg>=2.0" -> name="complex-pkg>=2.0", version="unknown" (no '==')
+        assert lib_comps["complex-pkg>=2.0"] == "unknown"
+
+        # "weird-pkg==1.0==build" -> name="weird-pkg", version="1.0==build" (split on first '==')
+        assert lib_comps["weird-pkg"] == "1.0==build"
+
+    def test_edge_case_optional_adapter(self) -> None:
+        """Test that optional adapter_sha is handled correctly (not added to properties)."""
+        input_data = BOMInput(
+            model_name="no-adapter-model",
+            model_version="1.0",
+            model_sha="sha256:222",
+            adapter_sha=None,
+            data_lineage=[],
+            software_dependencies=[],
+        )
+        generator = AIBOMGenerator()
+        result = generator.generate_bom(input_data)
+
+        # Check Model Identity String
+        assert result.model_identity == "no-adapter-model@sha256:222"
+        # Does NOT contain " + adapter@..."
+
+        # Check BOM Properties
+        main_component = result.cyclonedx_bom["metadata"]["component"]
+        properties = main_component.get("properties", [])
+        adapter_prop = next((p for p in properties if p["name"] == "coreason:adapter_sha"), None)
+        assert adapter_prop is None
+
+    def test_edge_case_raw_hash(self) -> None:
+        """Test that model_sha without 'sha256:' prefix is handled."""
+        raw_hash = "a" * 64
+        input_data = BOMInput(
+            model_name="raw-hash-model",
+            model_version="1.0",
+            model_sha=raw_hash,
+            data_lineage=[],
+            software_dependencies=[],
+        )
+        generator = AIBOMGenerator()
+        result = generator.generate_bom(input_data)
+
+        main_component = result.cyclonedx_bom["metadata"]["component"]
+        hashes = main_component.get("hashes", [])
+        sha256_hash = next((h["content"] for h in hashes if h["alg"] == "SHA-256"), None)
+
+        assert sha256_hash == raw_hash
+
+    def test_complex_scenario_large_bom(self) -> None:
+        """Test generating a BOM with a large number of components."""
+        num_deps = 1000
+        num_jobs = 100
+        deps = [f"pkg-{i}=={i}.0.0" for i in range(num_deps)]
+        jobs = [f"job-{i}" for i in range(num_jobs)]
+
+        input_data = BOMInput(
+            model_name="large-scale-model",
+            model_version="9.9.9",
+            model_sha="sha256:999",
+            data_lineage=jobs,
+            software_dependencies=deps,
+        )
+
+        generator = AIBOMGenerator()
+        result = generator.generate_bom(input_data)
+
+        components = result.cyclonedx_bom.get("components", [])
+
+        # Verify counts
+        lib_comps = [c for c in components if c["type"] == "library"]
+        data_comps = [c for c in components if c["type"] == "data"]
+
+        assert len(lib_comps) == num_deps
+        assert len(data_comps) == num_jobs
