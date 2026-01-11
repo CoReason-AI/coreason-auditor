@@ -162,3 +162,99 @@ def test_integrity_check_failure(engine: TraceabilityEngine, basic_requirements:
 
     with pytest.raises(ValueError, match="Requirement ID '9.9' in coverage_map not found"):
         engine.generate_matrix(agent_config, assay_report)
+
+
+def test_many_to_many_mixed_results(engine: TraceabilityEngine) -> None:
+    """
+    Test scenario where:
+    - Req A maps to T1, T2
+    - Req B maps to T2, T3
+    - T2 Fails
+    Expected: Both Req A and B fail. Overall status COVERED_FAILED.
+    """
+    reqs = [
+        Requirement(req_id="A", desc="Req A"),
+        Requirement(req_id="B", desc="Req B"),
+    ]
+    cov_map = {
+        "A": ["T1", "T2"],
+        "B": ["T2", "T3"],
+    }
+    config = AgentConfig(requirements=reqs, coverage_map=cov_map)
+
+    report = AssayReport(results=[
+        ComplianceTest(test_id="T1", result="PASS"),
+        ComplianceTest(test_id="T2", result="FAIL"),
+        ComplianceTest(test_id="T3", result="PASS"),
+    ])
+
+    rtm = engine.generate_matrix(config, report)
+
+    assert rtm.overall_status == RequirementStatus.COVERED_FAILED
+
+    # Check that TraceabilityMatrix correctly contains 3 unique tests
+    assert len(rtm.tests) == 3
+
+    # We can't easily check individual req status from RTM as it doesn't store computed req status,
+    # but the overall status confirms logic.
+
+
+def test_status_precedence_uncovered_vs_failed(engine: TraceabilityEngine) -> None:
+    """
+    Test that UNCOVERED takes precedence over COVERED_FAILED.
+    Req A: Uncovered.
+    Req B: Failed (Covered).
+    Overall: UNCOVERED.
+    """
+    reqs = [
+        Requirement(req_id="A", desc="Uncovered Req"),
+        Requirement(req_id="B", desc="Failed Req"),
+    ]
+    cov_map = {
+        "A": [], # Uncovered
+        "B": ["T1"],
+    }
+    config = AgentConfig(requirements=reqs, coverage_map=cov_map)
+
+    report = AssayReport(results=[
+        ComplianceTest(test_id="T1", result="FAIL"),
+    ])
+
+    rtm = engine.generate_matrix(config, report)
+
+    assert rtm.overall_status == RequirementStatus.UNCOVERED
+
+
+def test_extra_unmapped_tests_ignored(engine: TraceabilityEngine, basic_requirements: List[Requirement]) -> None:
+    """
+    Test that tests present in the report but not in the coverage map are ignored
+    and do not pollute the resulting matrix tests list.
+    """
+    cov_map = {"1.0": ["T-101"]} # Only T-101 is needed
+    config = AgentConfig(requirements=[basic_requirements[0]], coverage_map=cov_map)
+
+    report = AssayReport(results=[
+        ComplianceTest(test_id="T-101", result="PASS"),
+        ComplianceTest(test_id="T-999", result="FAIL"), # Extra test
+    ])
+
+    rtm = engine.generate_matrix(config, report)
+
+    assert rtm.overall_status == RequirementStatus.COVERED_PASSED
+    assert len(rtm.tests) == 1
+    assert rtm.tests[0].test_id == "T-101"
+    # T-999 should NOT be in the RTM because it's irrelevant to the requirements
+
+
+def test_empty_configuration(engine: TraceabilityEngine) -> None:
+    """
+    Test trivial success with empty requirements and tests.
+    """
+    config = AgentConfig(requirements=[], coverage_map={})
+    report = AssayReport(results=[])
+
+    rtm = engine.generate_matrix(config, report)
+
+    assert rtm.overall_status == RequirementStatus.COVERED_PASSED
+    assert len(rtm.tests) == 0
+    assert len(rtm.requirements) == 0
