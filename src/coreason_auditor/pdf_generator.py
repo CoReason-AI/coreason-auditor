@@ -284,16 +284,27 @@ class PDFReportGenerator:
         styles = getSampleStyleSheet()
         normal_style = styles["Normal"]
 
-        for dev in deviations:
-            # Expect dict, handle missing keys gracefully
-            sess_id = str(dev.get("session_id", "N/A"))
-            ts = str(dev.get("timestamp", "N/A"))
-            risk = str(dev.get("risk_level", "Unknown"))
+        for session in deviations:
+            sess_id = session.session_id
+            # Format timestamp nicely
+            ts = session.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            risk = session.risk_level.value
 
-            raw_summary = str(dev.get("violation_summary", "No details"))
-            safe_summary = html.escape(raw_summary)
-            violation = Paragraph(safe_summary, normal_style)
+            # Construct Violation Text (Type + Summary)
+            summary_parts = []
+            if session.violation_type:
+                summary_parts.append(f"<b>{html.escape(session.violation_type)}</b>")
 
-            rows.append([sess_id, ts, risk, violation])
+            if session.violation_summary:
+                summary_parts.append(html.escape(session.violation_summary))
+
+            if not summary_parts:
+                violation_text = "No details"
+            else:
+                violation_text = ": ".join(summary_parts) if len(summary_parts) > 1 else summary_parts[0]
+
+            violation_para = Paragraph(violation_text, normal_style)
+
+            rows.append([sess_id, ts, risk, violation_para])
 
         return rows
