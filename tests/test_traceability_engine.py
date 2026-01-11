@@ -182,11 +182,13 @@ def test_many_to_many_mixed_results(engine: TraceabilityEngine) -> None:
     }
     config = AgentConfig(requirements=reqs, coverage_map=cov_map)
 
-    report = AssayReport(results=[
-        ComplianceTest(test_id="T1", result="PASS"),
-        ComplianceTest(test_id="T2", result="FAIL"),
-        ComplianceTest(test_id="T3", result="PASS"),
-    ])
+    report = AssayReport(
+        results=[
+            ComplianceTest(test_id="T1", result="PASS"),
+            ComplianceTest(test_id="T2", result="FAIL"),
+            ComplianceTest(test_id="T3", result="PASS"),
+        ]
+    )
 
     rtm = engine.generate_matrix(config, report)
 
@@ -211,14 +213,16 @@ def test_status_precedence_uncovered_vs_failed(engine: TraceabilityEngine) -> No
         Requirement(req_id="B", desc="Failed Req"),
     ]
     cov_map = {
-        "A": [], # Uncovered
+        "A": [],  # Uncovered
         "B": ["T1"],
     }
     config = AgentConfig(requirements=reqs, coverage_map=cov_map)
 
-    report = AssayReport(results=[
-        ComplianceTest(test_id="T1", result="FAIL"),
-    ])
+    report = AssayReport(
+        results=[
+            ComplianceTest(test_id="T1", result="FAIL"),
+        ]
+    )
 
     rtm = engine.generate_matrix(config, report)
 
@@ -230,13 +234,15 @@ def test_extra_unmapped_tests_ignored(engine: TraceabilityEngine, basic_requirem
     Test that tests present in the report but not in the coverage map are ignored
     and do not pollute the resulting matrix tests list.
     """
-    cov_map = {"1.0": ["T-101"]} # Only T-101 is needed
+    cov_map = {"1.0": ["T-101"]}  # Only T-101 is needed
     config = AgentConfig(requirements=[basic_requirements[0]], coverage_map=cov_map)
 
-    report = AssayReport(results=[
-        ComplianceTest(test_id="T-101", result="PASS"),
-        ComplianceTest(test_id="T-999", result="FAIL"), # Extra test
-    ])
+    report = AssayReport(
+        results=[
+            ComplianceTest(test_id="T-101", result="PASS"),
+            ComplianceTest(test_id="T-999", result="FAIL"),  # Extra test
+        ]
+    )
 
     rtm = engine.generate_matrix(config, report)
 
