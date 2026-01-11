@@ -3,9 +3,9 @@ from typing import Dict, List, Set
 from coreason_auditor.models import (
     AgentConfig,
     AssayReport,
+    ComplianceTest,
     RequirementStatus,
     TraceabilityMatrix,
-    ComplianceTest,
 )
 from coreason_auditor.utils.logger import logger
 
@@ -50,11 +50,7 @@ class TraceabilityEngine:
                 # if it's in the coverage_map (due to the validator).
                 logger.warning(f"Test '{test_id}' defined in coverage map but missing from assay report.")
                 final_tests.append(
-                    ComplianceTest(
-                        test_id=test_id,
-                        result="FAIL",
-                        evidence="Test result missing from assay report."
-                    )
+                    ComplianceTest(test_id=test_id, result="FAIL", evidence="Test result missing from assay report.")
                 )
 
         # Map for O(1) lookup during status calculation
@@ -101,5 +97,5 @@ class TraceabilityEngine:
             requirements=agent_config.requirements,
             tests=final_tests,
             coverage_map=agent_config.coverage_map,
-            overall_status=overall_status
+            overall_status=overall_status,
         )

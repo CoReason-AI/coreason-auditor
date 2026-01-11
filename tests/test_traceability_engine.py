@@ -1,3 +1,5 @@
+from typing import Dict, Generator, List
+
 import pytest
 from coreason_auditor.models import (
     AgentConfig,
@@ -8,10 +10,9 @@ from coreason_auditor.models import (
     TraceabilityMatrix,
 )
 from coreason_auditor.traceability_engine import TraceabilityEngine
-from typing import Dict, List
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore[misc]
 def basic_requirements() -> List[Requirement]:
     return [
         Requirement(req_id="1.0", desc="Must be safe"),
@@ -19,7 +20,7 @@ def basic_requirements() -> List[Requirement]:
     ]
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore[misc]
 def basic_coverage_map() -> Dict[str, List[str]]:
     return {
         "1.0": ["T-101", "T-102"],
@@ -27,15 +28,13 @@ def basic_coverage_map() -> Dict[str, List[str]]:
     }
 
 
-@pytest.fixture
-def engine() -> TraceabilityEngine:
-    return TraceabilityEngine()
+@pytest.fixture  # type: ignore[misc]
+def engine() -> Generator[TraceabilityEngine, None, None]:
+    yield TraceabilityEngine()
 
 
 def test_generate_matrix_success(
-    engine: TraceabilityEngine,
-    basic_requirements: List[Requirement],
-    basic_coverage_map: Dict[str, List[str]]
+    engine: TraceabilityEngine, basic_requirements: List[Requirement], basic_coverage_map: Dict[str, List[str]]
 ) -> None:
     """
     Test a perfect scenario where all requirements are covered and all tests pass.
@@ -60,9 +59,7 @@ def test_generate_matrix_success(
 
 
 def test_generate_matrix_failed_test(
-    engine: TraceabilityEngine,
-    basic_requirements: List[Requirement],
-    basic_coverage_map: Dict[str, List[str]]
+    engine: TraceabilityEngine, basic_requirements: List[Requirement], basic_coverage_map: Dict[str, List[str]]
 ) -> None:
     """
     Test scenario where one test fails, causing the status to be COVERED_FAILED.
@@ -88,9 +85,7 @@ def test_generate_matrix_failed_test(
 
 
 def test_generate_matrix_missing_test_in_report(
-    engine: TraceabilityEngine,
-    basic_requirements: List[Requirement],
-    basic_coverage_map: Dict[str, List[str]]
+    engine: TraceabilityEngine, basic_requirements: List[Requirement], basic_coverage_map: Dict[str, List[str]]
 ) -> None:
     """
     Test scenario where a test is defined in the coverage map but missing from the assay report.
@@ -119,8 +114,7 @@ def test_generate_matrix_missing_test_in_report(
 
 
 def test_generate_matrix_uncovered_requirement(
-    engine: TraceabilityEngine,
-    basic_requirements: List[Requirement]
+    engine: TraceabilityEngine, basic_requirements: List[Requirement]
 ) -> None:
     """
     Test scenario where a requirement has no tests mapped to it.
@@ -146,10 +140,7 @@ def test_generate_matrix_uncovered_requirement(
     assert rtm.overall_status == RequirementStatus.UNCOVERED
 
 
-def test_integrity_check_failure(
-    engine: TraceabilityEngine,
-    basic_requirements: List[Requirement]
-) -> None:
+def test_integrity_check_failure(engine: TraceabilityEngine, basic_requirements: List[Requirement]) -> None:
     """
     Test that the engine handles cases where coverage map references non-existent requirements.
     """
