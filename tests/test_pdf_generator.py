@@ -16,6 +16,8 @@ from coreason_auditor.models import (
     ComplianceTest,
     Requirement,
     RequirementStatus,
+    RiskLevel,
+    Session,
     TraceabilityMatrix,
 )
 from coreason_auditor.pdf_generator import PDFReportGenerator
@@ -48,12 +50,13 @@ def sample_audit_package() -> AuditPackage:
     )
 
     deviations = [
-        {
-            "session_id": "sess-001",
-            "timestamp": "2023-10-27 10:00:00",
-            "risk_level": "High",
-            "violation_summary": "Toxic output detected",
-        }
+        Session(
+            session_id="sess-001",
+            timestamp=datetime(2023, 10, 27, 10, 0, 0, tzinfo=timezone.utc),
+            risk_level=RiskLevel.HIGH,
+            violation_summary="Toxic output detected",
+            violation_type="Safety",
+        )
     ]
 
     return AuditPackage(
@@ -110,6 +113,7 @@ def test_generate_report_content(tmp_path: Any, sample_audit_package: AuditPacka
     # Check Deviations
     assert "sess-001" in text
     assert "Toxic output detected" in text
+    assert "Safety" in text
 
     # Check Signature Page content
     assert "Electronic Signature Page" in text
@@ -227,12 +231,12 @@ def test_pdf_rendering_robustness(tmp_path: Any, sample_audit_package: AuditPack
 
     # Inject dangerous deviation
     sample_audit_package.deviation_report.append(
-        {
-            "session_id": "hack-001",
-            "timestamp": "now",
-            "risk_level": "Critical",
-            "violation_summary": "User said: <img src=x onerror=alert(1)>",
-        }
+        Session(
+            session_id="hack-001",
+            timestamp=datetime.now(timezone.utc),
+            risk_level=RiskLevel.CRITICAL,
+            violation_summary="User said: <img src=x onerror=alert(1)>",
+        )
     )
 
     # Ensure mapped tests (empty list is fine for X.1/X.2 => UNCOVERED)
@@ -272,12 +276,12 @@ def test_large_report_pagination(tmp_path: Any, sample_audit_package: AuditPacka
             Requirement(req_id=req_id, desc=f"Large Requirement {i}", critical=False)
         )
         sample_audit_package.deviation_report.append(
-            {
-                "session_id": f"sess-{i}",
-                "timestamp": "2023-01-01",
-                "risk_level": "Low",
-                "violation_summary": f"Violation {i}",
-            }
+            Session(
+                session_id=f"sess-{i}",
+                timestamp=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+                risk_level=RiskLevel.LOW,
+                violation_summary=f"Violation {i}",
+            )
         )
 
     output_file = tmp_path / "large_report.pdf"
@@ -353,12 +357,12 @@ def test_long_text_cell_behavior(tmp_path: Any, sample_audit_package: AuditPacka
     long_summary = "Deviation Detail:\n" + "\n".join([f"- Detail point {i}" for i in range(20)])
 
     sample_audit_package.deviation_report.append(
-        {
-            "session_id": "sess-long-text",
-            "timestamp": "2023-01-01",
-            "risk_level": "Medium",
-            "violation_summary": long_summary,
-        }
+        Session(
+            session_id="sess-long-text",
+            timestamp=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            risk_level=RiskLevel.MEDIUM,
+            violation_summary=long_summary,
+        )
     )
 
     output_file = tmp_path / "long_cell.pdf"
@@ -372,3 +376,121 @@ def test_long_text_cell_behavior(tmp_path: Any, sample_audit_package: AuditPacka
 
     assert "sess-long-text" in full_text
     assert "Detail point 19" in full_text
+
+
+def test_violation_type_html_injection(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test malicious HTML in violation_type."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Inject HTML in violation_type
+    sample_audit_package.deviation_report.append(
+        Session(
+            session_id="hack-type-001",
+            timestamp=datetime.now(timezone.utc),
+            risk_level=RiskLevel.HIGH,
+            violation_summary="Normal summary",
+            violation_type="<script>alert('xss')</script>",
+        )
+    )
+
+    output_file = tmp_path / "html_injection.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    assert "hack-type-001" in text
+    # Ensure tags are treated as text (i.e., not executed/hidden by PDF reader, but rendered)
+    # Pypdf extracts the text visible. If it was rendered as HTML, it might be bold or hidden.
+    # Since we escape, we expect the literal characters "<" or "&lt;" (pypdf often decodes entities)
+    assert "<script>" in text or "&lt;script&gt;" in text
+
+
+def test_unbreakable_text_behavior(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test behavior with a very long continuous string (e.g. hash)."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    long_token = "A" * 500  # 500 characters without space
+    sample_audit_package.deviation_report.append(
+        Session(
+            session_id="sess-unbreakable",
+            timestamp=datetime.now(timezone.utc),
+            risk_level=RiskLevel.LOW,
+            violation_summary=f"Token: {long_token}",
+        )
+    )
+
+    output_file = tmp_path / "unbreakable.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    assert "sess-unbreakable" in text
+    # It should not crash. ReportLab attempts to wrap or truncate/overflow.
+    # We mainly verify it doesn't raise an exception during generation.
+
+
+def test_timestamp_formats(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Verify rendering of naive vs aware datetimes."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Naive datetime
+    sample_audit_package.deviation_report.append(
+        Session(
+            session_id="sess-naive",
+            timestamp=datetime(2023, 5, 5, 12, 0, 0),  # No timezone
+            risk_level=RiskLevel.MEDIUM,
+            violation_summary="Naive time",
+        )
+    )
+
+    output_file = tmp_path / "timestamps.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    assert "sess-naive" in text
+    assert "2023-05-05 12:00:00" in text
+
+
+def test_empty_violation_details(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Verify behavior when violation details are missing/empty."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Empty string summary, None type
+    sample_audit_package.deviation_report.append(
+        Session(
+            session_id="sess-empty",
+            timestamp=datetime.now(timezone.utc),
+            risk_level=RiskLevel.LOW,
+            violation_summary="",
+            violation_type=None,
+        )
+    )
+
+    output_file = tmp_path / "empty_details.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    assert "sess-empty" in text
+    assert "No details" in text
