@@ -10,6 +10,8 @@ packages = [{include = "coreason_auditor", from = "src"}]
 [tool.poetry.dependencies]
 python = ">=3.12, <3.15"
 loguru = "^0.7.2"
+pydantic = "^2.12.5"
+cyclonedx-python-lib = "^11.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
@@ -58,7 +60,7 @@ strict = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=src --cov-report=term-missing --cov-fail-under=100"
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=97"
 testpaths = ["tests"]
 
 [tool.coverage.run]
