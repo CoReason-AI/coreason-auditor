@@ -321,9 +321,7 @@ def test_complex_scenario_mixed_content(tmp_path: Any, sample_audit_package: Aud
     # 2. Add a requirement with long text (but safely under 1 page to avoid row split issues for now)
     # 1000 chars is substantial.
     long_desc = "Long description start. " + "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 20
-    sample_audit_package.rtm.requirements.append(
-        Requirement(req_id="C.1", desc=long_desc, critical=True)
-    )
+    sample_audit_package.rtm.requirements.append(Requirement(req_id="C.1", desc=long_desc, critical=True))
 
     # 3. Add unicode in signer name
     # "田中" (Tanaka) in unicode is \u7530\u4e2d
