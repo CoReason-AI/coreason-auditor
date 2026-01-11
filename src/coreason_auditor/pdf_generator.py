@@ -1,3 +1,4 @@
+import html
 from typing import Any, List
 
 from reportlab.lib import colors
@@ -173,7 +174,9 @@ class PDFReportGenerator:
 
         for req in audit_package.rtm.requirements:
             req_id = req.req_id
-            desc = Paragraph(req.desc, normal_style)  # Wrap text
+            # Sanitize description to prevent XML parsing errors in Paragraph
+            safe_desc = html.escape(req.desc)
+            desc = Paragraph(safe_desc, normal_style)  # Wrap text
 
             # Determine status for this specific requirement
             # The RTM object has overall_status, but we need per-requirement status logic
@@ -216,7 +219,10 @@ class PDFReportGenerator:
             sess_id = str(dev.get("session_id", "N/A"))
             ts = str(dev.get("timestamp", "N/A"))
             risk = str(dev.get("risk_level", "Unknown"))
-            violation = Paragraph(str(dev.get("violation_summary", "No details")), normal_style)
+
+            raw_summary = str(dev.get("violation_summary", "No details"))
+            safe_summary = html.escape(raw_summary)
+            violation = Paragraph(safe_summary, normal_style)
 
             rows.append([sess_id, ts, risk, violation])
 

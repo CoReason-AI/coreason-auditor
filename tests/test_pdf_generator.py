@@ -145,8 +145,6 @@ def test_generate_report_edge_cases(tmp_path: Any, sample_audit_package: AuditPa
     # Coverage map points to T-FAIL (which exists but Failed)
     sample_audit_package.rtm.coverage_map["1.1"] = ["T-FAIL"]
 
-    sample_audit_package.rtm.tests.append(ComplianceTest(test_id="T-FAIL", result="FAIL", evidence="Failed reason"))
-
     # We need to bypass the validator for this test because the validator checks consistency.
     # But TraceabilityEngine logic might produce such a state (missing test from report but present in config).
     # Ideally TraceabilityMatrix validator prevents "T-MISSING" if it's strict.
@@ -162,6 +160,9 @@ def test_generate_report_edge_cases(tmp_path: Any, sample_audit_package: AuditPa
     # Now delete T-EXISTING from tests list.
     sample_audit_package.rtm.tests = [t for t in sample_audit_package.rtm.tests if t.test_id != "T-EXISTING"]
 
+    # Add T-FAIL
+    sample_audit_package.rtm.tests.append(ComplianceTest(test_id="T-FAIL", result="FAIL", evidence="Failed reason"))
+
     output_file = tmp_path / "edge_cases.pdf"
     generator = PDFReportGenerator()
     generator.generate_report(sample_audit_package, str(output_file))
@@ -176,3 +177,117 @@ def test_generate_report_edge_cases(tmp_path: Any, sample_audit_package: AuditPa
     # Check for MISSING indicator
     assert "T-EXISTING: MISSING" in text
     assert "T-FAIL: FAIL" in text
+
+
+def test_rtm_uncovered_requirement(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test specifically for req_status = 'UNCOVERED'."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Create a requirement that has NO tests in coverage_map
+    # Note: The validator requires that if it IS in coverage_map, the tests exist.
+    # It does NOT require that every requirement IS in coverage_map.
+    req_uncovered = Requirement(req_id="9.9", desc="Uncovered Requirement", critical=True)
+    sample_audit_package.rtm.requirements.append(req_uncovered)
+
+    # Ensure it's NOT in coverage map
+    if "9.9" in sample_audit_package.rtm.coverage_map:
+        del sample_audit_package.rtm.coverage_map["9.9"]
+
+    output_file = tmp_path / "uncovered.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    assert "9.9" in text
+    assert "UNCOVERED" in text
+    assert "Uncovered Requirement" in text
+
+
+def test_pdf_rendering_robustness(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test handling of special characters, HTML/XML injection, and long text."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Inject nasty characters
+    dangerous_desc = "Logic: A < B & C > D. <script>alert('hack')</script>"
+    unicode_desc = "Unicode: \u2603 (Snowman) \U0001f600 (Grin)"  # Snowman & Grinning Face
+
+    sample_audit_package.rtm.requirements.append(Requirement(req_id="X.1", desc=dangerous_desc, critical=False))
+    sample_audit_package.rtm.requirements.append(Requirement(req_id="X.2", desc=unicode_desc, critical=False))
+
+    # Inject dangerous deviation
+    sample_audit_package.deviation_report.append(
+        {
+            "session_id": "hack-001",
+            "timestamp": "now",
+            "risk_level": "Critical",
+            "violation_summary": "User said: <img src=x onerror=alert(1)>",
+        }
+    )
+
+    # Ensure mapped tests (empty list is fine for X.1/X.2 => UNCOVERED)
+    # This prevents validation error if we were re-validating, but here we just modify list.
+
+    output_file = tmp_path / "robustness.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    # Check that it didn't crash and text is present
+    # Note: reportlab Paragraph might strip tags if not escaped, or render them as text if escaped.
+    # Since we escaped, we expect to see the literal text "&lt;" or "<" depending on how pypdf extracts it.
+    # pypdf usually extracts "A < B" if it was rendered as text.
+
+    # We expect the text to exist in the PDF content
+    assert "Logic: A < B" in text
+    # Unicode support depends on font, standard PDF fonts might not show emojis, but shouldn't crash.
+    # If font doesn't support it, it might show squares or nothing.
+    # We mainly test for NO CRASH here.
+    assert "hack-001" in text
+
+
+def test_large_report_pagination(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test generating a large multi-page report."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Generate 100 requirements and deviations
+    for i in range(100):
+        req_id = f"L.{i}"
+        sample_audit_package.rtm.requirements.append(
+            Requirement(req_id=req_id, desc=f"Large Requirement {i}", critical=False)
+        )
+        sample_audit_package.deviation_report.append(
+            {
+                "session_id": f"sess-{i}",
+                "timestamp": "2023-01-01",
+                "risk_level": "Low",
+                "violation_summary": f"Violation {i}",
+            }
+        )
+
+    output_file = tmp_path / "large_report.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    # Should have multiple pages.
+    # 100 rows should take ~3-5 pages.
+    assert len(reader.pages) > 1
+
+    # Check if "L.99" exists in the document text.
+    # The requirement might be on a different page than the deviation.
+    full_text = ""
+    for page in reader.pages:
+        full_text += page.extract_text()
+
+    assert "L.99" in full_text
