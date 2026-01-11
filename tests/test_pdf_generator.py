@@ -302,3 +302,75 @@ def test_large_report_pagination(tmp_path: Any, sample_audit_package: AuditPacka
         full_text += page.extract_text()
 
     assert "L.199" in full_text
+
+
+def test_complex_scenario_mixed_content(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """
+    Complex scenario mixing:
+    - Long text
+    - Many dependencies
+    - Unicode
+    """
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # 1. Add 50 dependencies (to force split in dependency table)
+    for i in range(50):
+        sample_audit_package.bom.software_dependencies.append(f"lib-complex-{i}==1.0.{i}")
+
+    # 2. Add a requirement with long text (but safely under 1 page to avoid row split issues for now)
+    # 1000 chars is substantial.
+    long_desc = "Long description start. " + "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 20
+    sample_audit_package.rtm.requirements.append(
+        Requirement(req_id="C.1", desc=long_desc, critical=True)
+    )
+
+    # 3. Add unicode in signer name
+    # "田中" (Tanaka) in unicode is \u7530\u4e2d
+    sample_audit_package.generated_by = "Dr. \u7530\u4e2d (Tanaka)"
+
+    output_file = tmp_path / "complex_scenario.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    full_text = ""
+    for page in reader.pages:
+        full_text += page.extract_text()
+
+    assert "lib-complex-49" in full_text
+    assert "Long description start." in full_text
+    # pypdf might not extract CJK chars correctly depending on the embedded font,
+    # but we check it didn't crash.
+    # We can check for the ascii part "(Tanaka)"
+    assert "(Tanaka)" in full_text
+
+
+def test_long_text_cell_behavior(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test behavior when a single cell has significant amount of text."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Create a deviation with a summary that is ~20 lines long
+    long_summary = "Deviation Detail:\n" + "\n".join([f"- Detail point {i}" for i in range(20)])
+
+    sample_audit_package.deviation_report.append(
+        {
+            "session_id": "sess-long-text",
+            "timestamp": "2023-01-01",
+            "risk_level": "Medium",
+            "violation_summary": long_summary,
+        }
+    )
+
+    output_file = tmp_path / "long_cell.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    full_text = ""
+    for page in reader.pages:
+        full_text += page.extract_text()
+
+    assert "sess-long-text" in full_text
+    assert "Detail point 19" in full_text
