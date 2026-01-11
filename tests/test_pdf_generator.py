@@ -111,6 +111,11 @@ def test_generate_report_content(tmp_path: Any, sample_audit_package: AuditPacka
     assert "sess-001" in text
     assert "Toxic output detected" in text
 
+    # Check Signature Page content
+    assert "Electronic Signature Page" in text
+    assert "Signed By: AutomatedTest" in text
+    assert "Signature Hash: dummysig" in text
+
 
 def test_generate_report_empty_deviations(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
     if PdfReader is None:
@@ -260,8 +265,8 @@ def test_large_report_pagination(tmp_path: Any, sample_audit_package: AuditPacka
     if PdfReader is None:
         pytest.skip("pypdf not installed")
 
-    # Generate 100 requirements and deviations
-    for i in range(100):
+    # Generate 200 requirements and deviations to ensure > 2 pages
+    for i in range(200):
         req_id = f"L.{i}"
         sample_audit_package.rtm.requirements.append(
             Requirement(req_id=req_id, desc=f"Large Requirement {i}", critical=False)
@@ -281,13 +286,89 @@ def test_large_report_pagination(tmp_path: Any, sample_audit_package: AuditPacka
 
     reader = PdfReader(str(output_file))
     # Should have multiple pages.
-    # 100 rows should take ~3-5 pages.
-    assert len(reader.pages) > 1
+    # 200 rows should take multiple pages.
+    assert len(reader.pages) > 2
 
-    # Check if "L.99" exists in the document text.
-    # The requirement might be on a different page than the deviation.
+    # Check headers and footers on a later page (e.g. page 2, index 1)
+    page_2_text = reader.pages[1].extract_text()
+    assert "CoReason Audit Report" in page_2_text
+    assert "Confidential - CoReason Ecosystem" in page_2_text
+    # Check page number formatting if pypdf extracts it cleanly (sometimes it's tricky)
+    # But at least the static text should be there.
+
+    # Verify content
     full_text = ""
     for page in reader.pages:
         full_text += page.extract_text()
 
-    assert "L.99" in full_text
+    assert "L.199" in full_text
+
+
+def test_complex_scenario_mixed_content(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """
+    Complex scenario mixing:
+    - Long text
+    - Many dependencies
+    - Unicode
+    """
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # 1. Add 50 dependencies (to force split in dependency table)
+    for i in range(50):
+        sample_audit_package.bom.software_dependencies.append(f"lib-complex-{i}==1.0.{i}")
+
+    # 2. Add a requirement with long text (but safely under 1 page to avoid row split issues for now)
+    # 1000 chars is substantial.
+    long_desc = "Long description start. " + "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 20
+    sample_audit_package.rtm.requirements.append(Requirement(req_id="C.1", desc=long_desc, critical=True))
+
+    # 3. Add unicode in signer name
+    # "田中" (Tanaka) in unicode is \u7530\u4e2d
+    sample_audit_package.generated_by = "Dr. \u7530\u4e2d (Tanaka)"
+
+    output_file = tmp_path / "complex_scenario.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    full_text = ""
+    for page in reader.pages:
+        full_text += page.extract_text()
+
+    assert "lib-complex-49" in full_text
+    assert "Long description start." in full_text
+    # pypdf might not extract CJK chars correctly depending on the embedded font,
+    # but we check it didn't crash.
+    # We can check for the ascii part "(Tanaka)"
+    assert "(Tanaka)" in full_text
+
+
+def test_long_text_cell_behavior(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test behavior when a single cell has significant amount of text."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Create a deviation with a summary that is ~20 lines long
+    long_summary = "Deviation Detail:\n" + "\n".join([f"- Detail point {i}" for i in range(20)])
+
+    sample_audit_package.deviation_report.append(
+        {
+            "session_id": "sess-long-text",
+            "timestamp": "2023-01-01",
+            "risk_level": "Medium",
+            "violation_summary": long_summary,
+        }
+    )
+
+    output_file = tmp_path / "long_cell.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    full_text = ""
+    for page in reader.pages:
+        full_text += page.extract_text()
+
+    assert "sess-long-text" in full_text
+    assert "Detail point 19" in full_text
