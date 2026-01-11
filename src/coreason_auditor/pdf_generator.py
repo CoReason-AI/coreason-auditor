@@ -4,7 +4,15 @@ from typing import Any, List
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from coreason_auditor.models import AuditPackage
 from coreason_auditor.utils.logger import logger
@@ -26,6 +34,41 @@ class PDFReportGenerator:
         logger.info(f"Generating PDF report for Audit Package {audit_package.id} at {output_path}")
 
         doc = SimpleDocTemplate(output_path, pagesize=letter)
+
+        # Define the page template with header/footer
+        def header_footer(canvas: canvas.Canvas, doc: Any) -> None:
+            canvas.saveState()
+
+            # --- Header ---
+            canvas.setFont("Helvetica-Bold", 10)
+            canvas.drawString(inch, letter[1] - 0.5 * inch, "CoReason Audit Report")
+
+            canvas.setFont("Helvetica", 9)
+            generated_str = f"Generated: {audit_package.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            canvas.drawRightString(letter[0] - inch, letter[1] - 0.5 * inch, generated_str)
+
+            # Line separator
+            canvas.setStrokeColor(colors.grey)
+            canvas.line(inch, letter[1] - 0.6 * inch, letter[0] - inch, letter[1] - 0.6 * inch)
+
+            # --- Footer ---
+            canvas.setFont("Helvetica", 8)
+            page_num = canvas.getPageNumber()
+            canvas.drawString(inch, 0.5 * inch, "Confidential - CoReason Ecosystem")
+            canvas.drawCentredString(letter[0] / 2, 0.5 * inch, f"Page {page_num}")
+
+            if audit_package.document_hash:
+                # Small hash on bottom right
+                hash_short = (
+                    audit_package.document_hash[:16] + "..."
+                    if len(audit_package.document_hash) > 16
+                    else audit_package.document_hash
+                )
+                canvas.drawRightString(letter[0] - inch, 0.5 * inch, f"Hash: {hash_short}")
+
+            canvas.restoreState()
+
+        # Build the story
         styles = getSampleStyleSheet()
         story: List[Any] = []
 
@@ -34,9 +77,9 @@ class PDFReportGenerator:
         heading_style = styles["Heading2"]
         normal_style = styles["Normal"]
 
-        # --- Header ---
-        story.append(Paragraph("CoReason Audit Report", title_style))
-        story.append(Spacer(1, 12))
+        # Title Page Info
+        story.append(Paragraph("CoReason Audit Package", title_style))
+        story.append(Spacer(1, 24))
 
         header_data = [
             ["Generated At:", audit_package.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC")],
@@ -70,8 +113,6 @@ class PDFReportGenerator:
         # Dependencies
         story.append(Paragraph("Software Dependencies:", styles["Heading3"]))
         if bom.software_dependencies:
-            # Chunk dependencies to save space if needed, or just list them
-            # Let's list top 10 or all? All is safer for audit.
             dep_data = [[dep] for dep in bom.software_dependencies]
             story.append(self._create_list_table(dep_data, ["PackageSpec"]))
         else:
@@ -97,16 +138,49 @@ class PDFReportGenerator:
         else:
             story.append(Paragraph("No deviations reported.", normal_style))
 
+        story.append(Spacer(1, 36))
+
+        # --- Signature Page ---
+        self._append_signature_page(story, audit_package)
+
+        # Build doc with header/footer callback
+        doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
+        logger.info("PDF generation successful.")
+
+    def _append_signature_page(self, story: List[Any], audit_package: AuditPackage) -> None:
+        """Appends the electronic signature page."""
+        styles = getSampleStyleSheet()
+
+        # Force page break so signature is on its own page (or clear separate section)
+        # But standard says "Appends a 'Signature Page'". Let's use KeepTogether or just a big spacer if needed.
+        # Ideally, we want a PageBreak, but reportlab SimpleDocTemplate handles flow.
+        from reportlab.platypus import PageBreak
+
+        story.append(PageBreak())
+
+        story.append(Paragraph("Electronic Signature Page", styles["Heading1"]))
         story.append(Spacer(1, 24))
 
-        # --- Signature Placeholder ---
-        # The actual signature is applied later, but we can show the hash if present
-        if audit_package.document_hash:
-            story.append(Paragraph("Document Security", heading_style))
-            story.append(Paragraph(f"Document Hash (SHA-256): {audit_package.document_hash}", normal_style))
+        story.append(Paragraph("This document has been electronically signed and approved.", styles["Normal"]))
+        story.append(Spacer(1, 36))
 
-        doc.build(story)
-        logger.info("PDF generation successful.")
+        # Signature Block
+        sig_content = [
+            f"<b>Signed By:</b> {html.escape(audit_package.generated_by)}",
+            f"<b>Date:</b> {audit_package.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}",
+            "<b>Reason:</b> Regulatory Compliance Submission",
+            "<b>Authority:</b> CoReason Identity Service",
+        ]
+
+        if audit_package.electronic_signature:
+            sig_content.append(f"<b>Signature Hash:</b> {audit_package.electronic_signature}")
+
+        for line in sig_content:
+            story.append(Paragraph(line, styles["Normal"]))
+            story.append(Spacer(1, 6))
+
+        story.append(Spacer(1, 24))
+        story.append(Paragraph("<i>End of Document</i>", styles["Italic"]))
 
     def _create_info_table(self, data: List[List[Any]]) -> Table:
         """Creates a simple 2-column info table."""
@@ -127,7 +201,7 @@ class PDFReportGenerator:
     def _create_list_table(self, data: List[List[str]], headers: List[str]) -> Table:
         """Creates a simple list table with a header."""
         table_data = [headers] + data
-        t = Table(table_data, colWidths=[400])
+        t = Table(table_data, colWidths=[400], repeatRows=1)  # Repeat header if splits
         t.setStyle(
             TableStyle(
                 [
@@ -177,10 +251,6 @@ class PDFReportGenerator:
             # Sanitize description to prevent XML parsing errors in Paragraph
             safe_desc = html.escape(req.desc)
             desc = Paragraph(safe_desc, normal_style)  # Wrap text
-
-            # Determine status for this specific requirement
-            # The RTM object has overall_status, but we need per-requirement status logic
-            # Re-using logic from TraceabilityEngine conceptually, or just listing tests
 
             linked_test_ids = audit_package.rtm.coverage_map.get(req_id, [])
 
