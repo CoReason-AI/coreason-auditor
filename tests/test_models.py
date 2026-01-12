@@ -145,7 +145,7 @@ def test_validation_error() -> None:
             requirements=[],
             tests=[],
             coverage_map={},
-            overall_status="INVALID_STATUS",  # type: ignore[arg-type] # Invalid enum
+            overall_status="INVALID_STATUS",
         )
 
 
