@@ -1,0 +1,48 @@
+from typing import List, Optional
+
+from coreason_auditor.interfaces import AegisService, IdentityService, SessionSource
+from coreason_auditor.models import RiskLevel, Session
+
+
+class MockSessionSource(SessionSource):
+    """
+    Mock implementation of SessionSource for testing and development.
+    """
+
+    def __init__(self, sessions: Optional[List[Session]] = None):
+        self._sessions = {s.session_id: s for s in sessions} if sessions else {}
+
+    def get_session(self, session_id: str) -> Optional[Session]:
+        return self._sessions.get(session_id)
+
+    def get_sessions_by_risk(self, risk_level: RiskLevel, limit: int = 10) -> List[Session]:
+        # Simple filter
+        matching = [s for s in self._sessions.values() if s.risk_level == risk_level]
+        return matching[:limit]
+
+    def add_session(self, session: Session) -> None:
+        self._sessions[session.session_id] = session
+
+
+class MockAegisService(AegisService):
+    """
+    Mock implementation of AegisService.
+    Simulates decryption by stripping a prefix "ENC:".
+    """
+
+    def decrypt(self, ciphertext: str) -> str:
+        if ciphertext.startswith("ENC:"):
+            return ciphertext[4:]
+        # If not encrypted with our mock prefix, return as is (or raise error if strict)
+        # For robustness in tests, we assume it returns as is if not matching pattern
+        return ciphertext
+
+
+class MockIdentityService(IdentityService):
+    """
+    Mock implementation of IdentityService.
+    Returns a dummy signature.
+    """
+
+    def sign_document(self, document_hash: str, user_id: str) -> str:
+        return f"SIGNED_BY_{user_id}_HASH_{document_hash[:8]}"
