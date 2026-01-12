@@ -1,4 +1,5 @@
-from typing import Any, List, Optional
+from operator import attrgetter
+from typing import List, Optional
 
 from coreason_auditor.interfaces import AegisService, SessionSource
 from coreason_auditor.models import RiskLevel, Session
@@ -78,10 +79,7 @@ class SessionReplayer:
                 if isinstance(v, str):
                     event.metadata[k] = self._decrypt_safe(v)
 
-        def get_timestamp(e: Any) -> Any:
-            return e.timestamp
-
-        session.events.sort(key=get_timestamp)
+        session.events.sort(key=attrgetter("timestamp"))
 
     def _decrypt_safe(self, text: str) -> str:
         """Attempts to decrypt text, returning original on failure to avoid data loss."""
