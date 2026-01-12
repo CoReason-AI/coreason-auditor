@@ -113,7 +113,7 @@ class PDFReportGenerator:
 
         bom = audit_package.bom
         bom_data = [
-            ["Model Identity:", Paragraph(bom.model_identity, normal_style)],
+            ["Model Identity:", Paragraph(html.escape(bom.model_identity), normal_style)],
         ]
         story.append(self._create_info_table(bom_data))
         story.append(Spacer(1, 12))
