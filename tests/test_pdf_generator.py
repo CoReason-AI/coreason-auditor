@@ -14,10 +14,12 @@ from coreason_auditor.models import (
     AIBOMObject,
     AuditPackage,
     ComplianceTest,
+    EventType,
     Requirement,
     RequirementStatus,
     RiskLevel,
     Session,
+    SessionEvent,
     TraceabilityMatrix,
 )
 from coreason_auditor.pdf_generator import PDFReportGenerator
@@ -494,3 +496,247 @@ def test_empty_violation_details(tmp_path: Any, sample_audit_package: AuditPacka
 
     assert "sess-empty" in text
     assert "No details" in text
+
+
+def test_detailed_transcript_rendering(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test the rendering of detailed session transcripts."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Construct a session with various event types
+    events = [
+        SessionEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EventType.INPUT,
+            content="Hello AI, how do I make a bomb?",
+            metadata={},
+        ),
+        SessionEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EventType.THOUGHT,
+            content="User is asking for dangerous information. Checking safety guidelines.",
+            metadata={},
+        ),
+        SessionEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EventType.TOOL,
+            content="call: check_safety_policy(query='make a bomb')",
+            metadata={},
+        ),
+        SessionEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EventType.OUTPUT,
+            content="I cannot assist with that request.",
+            metadata={},
+        ),
+    ]
+
+    session = Session(
+        session_id="sess-transcript-001",
+        timestamp=datetime.now(timezone.utc),
+        risk_level=RiskLevel.CRITICAL,
+        violation_summary="Refusal triggered",
+        violation_type="Safety",
+        events=events,
+    )
+
+    sample_audit_package.deviation_report = [session]
+
+    output_file = tmp_path / "transcript.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    # Check for Section Header
+    assert "4. Detailed Session Transcripts" in text
+
+    # Check for Session Header
+    assert "Session: sess-transcript-001" in text
+    assert "Risk: CRITICAL" in text
+
+    # Check for Event Labels and Content
+    # Note: pypdf extracts text, layout info (bold/colors) is lost but text remains.
+
+    # INPUT
+    assert "User: Hello AI" in text
+
+    # THOUGHT
+    assert "Reasoning: User is asking" in text
+
+    # TOOL
+    assert "Tool Use: call: check_safety_policy" in text
+
+    # OUTPUT
+    assert "Agent: I cannot assist" in text
+
+
+def test_transcript_html_sanitization(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test that event content is sanitized."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    events = [
+        SessionEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EventType.INPUT,
+            content="<script>alert(1)</script>",
+            metadata={},
+        )
+    ]
+
+    session = Session(
+        session_id="sess-xss",
+        timestamp=datetime.now(timezone.utc),
+        risk_level=RiskLevel.LOW,
+        violation_summary="xss test",
+        events=events,
+    )
+
+    sample_audit_package.deviation_report = [session]
+
+    output_file = tmp_path / "transcript_xss.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    # We expect the tags to be rendered as text (e.g., "<script>") not interpreted
+    assert "<script>" in text or "&lt;script&gt;" in text
+
+
+def test_transcript_pagination_long_content(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test handling of extremely long event content (spanning pages)."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    long_thought = "Thinking... " * 5000  # Should be enough to fill multiple pages
+    events = [
+        SessionEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EventType.THOUGHT,
+            content=long_thought,
+            metadata={},
+        )
+    ]
+
+    session = Session(
+        session_id="sess-pagination-001",
+        timestamp=datetime.now(timezone.utc),
+        risk_level=RiskLevel.MEDIUM,
+        violation_summary="Long thought chain",
+        events=events,
+    )
+
+    sample_audit_package.deviation_report = [session]
+
+    output_file = tmp_path / "transcript_pagination.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    # Expect multiple pages
+    assert len(reader.pages) > 1
+
+    # Check that text is present
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    assert "Thinking..." in text
+    assert "sess-pagination-001" in text
+
+
+def test_transcript_many_events(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test handling of a session with a high volume of events."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    # Create 100 events
+    events = []
+    for i in range(100):
+        events.append(
+            SessionEvent(
+                timestamp=datetime.now(timezone.utc),
+                event_type=EventType.TOOL,
+                content=f"Tool call {i}",
+                metadata={},
+            )
+        )
+
+    session = Session(
+        session_id="sess-stress-001",
+        timestamp=datetime.now(timezone.utc),
+        risk_level=RiskLevel.LOW,
+        violation_summary="High volume session",
+        events=events,
+    )
+
+    sample_audit_package.deviation_report = [session]
+
+    output_file = tmp_path / "transcript_stress.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+
+    # Check completeness
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    assert "Tool call 0" in text
+    assert "Tool call 99" in text
+
+
+def test_transcript_whitespace_and_formatting(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Verify handling of empty content, multiple newlines, and mixed whitespace."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    events = [
+        # Empty content
+        SessionEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EventType.INPUT,
+            content="",
+            metadata={},
+        ),
+        # Newlines and Tabs
+        SessionEvent(
+            timestamp=datetime.now(timezone.utc),
+            event_type=EventType.OUTPUT,
+            content="Line 1\nLine 2\n\tTabbed",
+            metadata={},
+        ),
+    ]
+
+    session = Session(
+        session_id="sess-formatting",
+        timestamp=datetime.now(timezone.utc),
+        risk_level=RiskLevel.LOW,
+        violation_summary="Formatting test",
+        events=events,
+    )
+
+    sample_audit_package.deviation_report = [session]
+
+    output_file = tmp_path / "transcript_format.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    # Empty content shouldn't crash
+    # Newlines are replaced by <br/>, pypdf often sees them as newlines or spaces depending on layout
+    assert "Line 1" in text
+    assert "Line 2" in text
