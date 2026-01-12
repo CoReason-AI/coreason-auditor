@@ -1,0 +1,76 @@
+from abc import ABC, abstractmethod
+from typing import List, Optional
+
+from coreason_auditor.models import RiskLevel, Session
+
+
+class SessionSource(ABC):
+    """
+    Interface for retrieving session data from the source of truth (e.g., coreason-veritas).
+    """
+
+    @abstractmethod
+    def get_session(self, session_id: str) -> Optional[Session]:  # pragma: no cover
+        """
+        Retrieves a single session by ID.
+
+        Args:
+            session_id: The unique identifier of the session.
+
+        Returns:
+            The Session object if found, else None.
+        """
+        pass
+
+    @abstractmethod
+    def get_sessions_by_risk(self, risk_level: RiskLevel, limit: int = 10) -> List[Session]:  # pragma: no cover
+        """
+        Retrieves a list of sessions filtered by risk level.
+
+        Args:
+            risk_level: The risk level to filter by (e.g., HIGH).
+            limit: Maximum number of sessions to return.
+
+        Returns:
+            A list of matching Session objects.
+        """
+        pass
+
+
+class AegisService(ABC):
+    """
+    Interface for the CoReason Aegis encryption/decryption service.
+    """
+
+    @abstractmethod
+    def decrypt(self, ciphertext: str) -> str:  # pragma: no cover
+        """
+        Decrypts the given ciphertext.
+
+        Args:
+            ciphertext: The encrypted string.
+
+        Returns:
+            The decrypted plaintext.
+        """
+        pass
+
+
+class IdentityService(ABC):
+    """
+    Interface for the CoReason Identity service (digital signatures).
+    """
+
+    @abstractmethod
+    def sign_document(self, document_hash: str, user_id: str) -> str:  # pragma: no cover
+        """
+        Requests a digital signature for a document hash.
+
+        Args:
+            document_hash: The SHA-256 hash of the document.
+            user_id: The ID of the user signing the document.
+
+        Returns:
+            The cryptographic signature string.
+        """
+        pass
