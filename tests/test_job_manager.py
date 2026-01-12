@@ -32,7 +32,7 @@ class TestJobManager(unittest.TestCase):
         self.assertIn(job.status, [JobStatus.PENDING, JobStatus.RUNNING])
 
         # Wait for completion
-        time.sleep(0.2)
+        self._wait_for_job(job_id)
 
         job = self.manager.get_job(job_id)
         assert job is not None
@@ -44,12 +44,22 @@ class TestJobManager(unittest.TestCase):
         """Test error handling."""
         job_id = self.manager.submit_job(mock_failing_task)
 
-        time.sleep(0.1)
+        self._wait_for_job(job_id)
 
         job = self.manager.get_job(job_id)
         assert job is not None
         self.assertEqual(job.status, JobStatus.FAILED)
         self.assertIn("Task failed on purpose", str(job.error))
+
+    def _wait_for_job(self, job_id: str, timeout: float = 2.0) -> None:
+        """Helper to poll for job completion."""
+        start = time.time()
+        while time.time() - start < timeout:
+            job = self.manager.get_job(job_id)
+            if job and job.status in [JobStatus.COMPLETED, JobStatus.FAILED]:
+                return
+            time.sleep(0.05)
+        raise TimeoutError(f"Job {job_id} did not complete within {timeout}s")
 
     def test_get_nonexistent_job(self) -> None:
         """Test retrieving invalid job ID."""
