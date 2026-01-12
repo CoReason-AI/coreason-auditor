@@ -78,7 +78,11 @@ class SessionReplayer:
                 if isinstance(v, str):
                     event.metadata[k] = self._decrypt_safe(v)
 
-        session.events.sort(key=_get_timestamp_key)
+        session.events.sort(key=self._get_timestamp_key)
+
+    @staticmethod
+    def _get_timestamp_key(e: Any) -> Any:
+        return e.timestamp  # pragma: no cover
 
     def _decrypt_safe(self, text: str) -> str:
         """Attempts to decrypt text, returning original on failure to avoid data loss."""
@@ -94,7 +98,3 @@ class SessionReplayer:
             # We assign 'e' to avoid unused variable lint error if we were logging,
             # but here strictly we just want to suppress it.
             return text
-
-
-def _get_timestamp_key(e: Any) -> Any:
-    return e.timestamp

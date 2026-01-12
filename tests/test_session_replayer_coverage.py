@@ -44,6 +44,10 @@ class TestSessionReplayerCoverage(unittest.TestCase):
         self.assertEqual(session.events[1].content, "B")
         self.assertEqual(session.events[2].content, "C")
 
+        # Explicitly cover the static method in case sort() usage is not tracked
+        ts_val = self.replayer._get_timestamp_key(session.events[0])
+        self.assertEqual(ts_val, t0)
+
     def test_process_session_empty_events(self) -> None:
         """Verify no crash on empty events."""
         session = Session(
