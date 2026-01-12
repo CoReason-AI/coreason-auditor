@@ -1,12 +1,14 @@
 import html
-from typing import Any, List
+from typing import Any, List, Tuple
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
+    Flowable,
+    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -14,8 +16,23 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from coreason_auditor.models import AuditPackage
+from coreason_auditor.models import AuditPackage, EventType, Session
 from coreason_auditor.utils.logger import logger
+
+
+class HorizontalLine(Flowable):  # type: ignore[misc]
+    """Draws a horizontal line."""
+
+    def __init__(self, width: float) -> None:
+        super().__init__()
+        self.width = width
+
+    def wrap(self, availWidth: float, availHeight: float) -> Tuple[float, float]:
+        return (self.width, 1)
+
+    def draw(self) -> None:
+        self.canv.setStrokeColor(colors.lightgrey)
+        self.canv.line(0, 0, self.width, 0)
 
 
 class PDFReportGenerator:
@@ -135,6 +152,14 @@ class PDFReportGenerator:
         if audit_package.deviation_report:
             deviation_table_data = self._build_deviation_table_data(audit_package.deviation_report)
             story.append(self._create_data_table(deviation_table_data, col_widths=[100, 100, 60, 200]))
+            story.append(Spacer(1, 24))
+
+            # --- Detailed Transcripts ---
+            # Added as requested to provide full forensic context
+            story.append(Paragraph("4. Detailed Session Transcripts", heading_style))
+            story.append(Spacer(1, 12))
+
+            self._append_detailed_transcripts(story, audit_package.deviation_report)
         else:
             story.append(Paragraph("No deviations reported.", normal_style))
 
@@ -147,15 +172,101 @@ class PDFReportGenerator:
         doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
         logger.info("PDF generation successful.")
 
+    def _append_detailed_transcripts(self, story: List[Any], sessions: List[Session]) -> None:
+        """
+        Appends detailed transcripts for each session in the deviation report.
+        Handles formatting for INPUT, THOUGHT, TOOL, and OUTPUT events.
+        """
+        styles = getSampleStyleSheet()
+
+        # Define styles for different event types
+        input_style = ParagraphStyle(
+            "EventInput",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            spaceBefore=6,
+            spaceAfter=6,
+            backColor=colors.whitesmoke,
+            borderPadding=4,
+        )
+
+        thought_style = ParagraphStyle(
+            "EventThought",
+            parent=styles["Italic"],
+            textColor=colors.dimgrey,
+            spaceBefore=4,
+            spaceAfter=4,
+            leftIndent=12,
+        )
+
+        tool_style = ParagraphStyle(
+            "EventTool",
+            parent=styles["Code"],
+            fontName="Courier",
+            fontSize=8,
+            textColor=colors.darkblue,
+            spaceBefore=4,
+            spaceAfter=4,
+            leftIndent=12,
+            backColor=colors.lightyellow,
+            borderPadding=2,
+        )
+
+        output_style = ParagraphStyle(
+            "EventOutput",
+            parent=styles["Normal"],
+            spaceBefore=6,
+            spaceAfter=6,
+            leftIndent=0,
+        )
+
+        header_style = styles["Heading3"]
+
+        for session in sessions:
+            # Session Header
+            ts_str = session.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
+            header_text = f"Session: {session.session_id} | Time: {ts_str} | Risk: {session.risk_level.value}"
+            story.append(Paragraph(header_text, header_style))
+
+            # Violation Summary
+            if session.violation_summary:
+                violation_text = f"<b>Violation:</b> {html.escape(session.violation_summary)}"
+                story.append(Paragraph(violation_text, styles["Normal"]))
+
+            story.append(Spacer(1, 12))
+
+            if not session.events:
+                story.append(Paragraph("<i>No events recorded for this session.</i>", styles["Normal"]))
+
+            for event in session.events:
+                content_safe = html.escape(event.content).replace("\n", "<br/>")
+
+                if event.event_type == EventType.INPUT:
+                    label = "<b>User:</b> "
+                    story.append(Paragraph(label + content_safe, input_style))
+
+                elif event.event_type == EventType.THOUGHT:
+                    label = "<b>Reasoning:</b> "
+                    story.append(Paragraph(label + content_safe, thought_style))
+
+                elif event.event_type == EventType.TOOL:
+                    label = "<b>Tool Use:</b> "
+                    story.append(Paragraph(label + content_safe, tool_style))
+
+                elif event.event_type == EventType.OUTPUT:
+                    label = "<b>Agent:</b> "
+                    story.append(Paragraph(label + content_safe, output_style))
+
+            # Separator between sessions
+            story.append(Spacer(1, 24))
+            story.append(HorizontalLine(width=450))
+            story.append(Spacer(1, 24))
+
     def _append_signature_page(self, story: List[Any], audit_package: AuditPackage) -> None:
         """Appends the electronic signature page."""
         styles = getSampleStyleSheet()
 
         # Force page break so signature is on its own page (or clear separate section)
-        # But standard says "Appends a 'Signature Page'". Let's use KeepTogether or just a big spacer if needed.
-        # Ideally, we want a PageBreak, but reportlab SimpleDocTemplate handles flow.
-        from reportlab.platypus import PageBreak
-
         story.append(PageBreak())
 
         story.append(Paragraph("Electronic Signature Page", styles["Heading1"]))
