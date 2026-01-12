@@ -36,21 +36,8 @@ class SessionReplayer:
             logger.warning(f"Session {session_id} not found.")
             return None
 
-        # 1. Decrypt Session-level fields
-        if session.violation_summary:
-            session.violation_summary = self._decrypt_safe(session.violation_summary)
-
-        # 2. Process Events
-        for event in session.events:
-            # Decrypt content
-            event.content = self._decrypt_safe(event.content)
-            # Decrypt metadata values if they are strings (heuristic)
-            for k, v in event.metadata.items():
-                if isinstance(v, str):
-                    event.metadata[k] = self._decrypt_safe(v)
-
-        # 3. Sort events chronologically to ensure the "Story" is linear
-        session.events.sort(key=lambda e: e.timestamp)
+        # Process the session (Decrypt/Sort)
+        self._process_session_in_place(session)
 
         logger.info(f"Session {session_id} reconstructed with {len(session.events)} events.")
         return session
@@ -103,4 +90,7 @@ class SessionReplayer:
             # In a real scenario, we might log a debug message or check if it WAS encrypted.
             # Here we assume everything might be, so failures are expected for plain text.
             # logger.debug(f"Decryption failed (possibly plaintext): {e}")
+            # We catch exception to ensure robustness, but we must return original text.
+            # We assign 'e' to avoid unused variable lint error if we were logging,
+            # but here strictly we just want to suppress it.
             return text

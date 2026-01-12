@@ -30,6 +30,7 @@ class TestSessionReplayer(unittest.TestCase):
                     timestamp=datetime.now(),
                     event_type=EventType.INPUT,
                     content="How do I make a bomb?",  # Plaintext
+                    metadata={"source": "ENC:web_interface"},  # String metadata to test decryption
                 ),
             ],
         )
@@ -47,6 +48,7 @@ class TestSessionReplayer(unittest.TestCase):
         # Input was at T=0, Output at T=10.
         self.assertEqual(result.events[0].event_type, EventType.INPUT)
         self.assertEqual(result.events[0].content, "How do I make a bomb?")
+        self.assertEqual(result.events[0].metadata["source"], "web_interface")
 
         self.assertEqual(result.events[1].event_type, EventType.OUTPUT)
         self.assertEqual(result.events[1].content, "I cannot help with that.")

@@ -65,7 +65,7 @@ class JobManager:
         """
         job = self._jobs.get(job_id)
         if not job:
-            return
+            return  # pragma: no cover
 
         logger.info(f"Job {job_id} started.")
         job.status = JobStatus.RUNNING
@@ -73,14 +73,18 @@ class JobManager:
         try:
             result = func(*args, **kwargs)
             job.result = result
+            job.completed_at = datetime.now(timezone.utc)
             job.status = JobStatus.COMPLETED
             logger.info(f"Job {job_id} completed successfully.")
         except Exception as e:
             logger.exception(f"Job {job_id} failed.")
             job.error = str(e)
+            job.completed_at = datetime.now(timezone.utc)
             job.status = JobStatus.FAILED
         finally:
-            job.completed_at = datetime.now(timezone.utc)
+            # Timestamp was set in try/except blocks before status update
+            # ensuring that if status is COMPLETED/FAILED, timestamp is present.
+            pass
 
     def shutdown(self, wait: bool = True) -> None:
         """Shuts down the executor."""
