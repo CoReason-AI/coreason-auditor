@@ -17,7 +17,7 @@ repos:
     rev: v1.10.1
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic>=2.0, cyclonedx-python-lib, loguru]
+        additional_dependencies: [pydantic>=2.0, cyclonedx-python-lib, loguru, types-PyYAML, pydantic-settings]
   - repo: https://github.com/AleksaC/hadolint-py
     rev: v2.14.0
     hooks:
