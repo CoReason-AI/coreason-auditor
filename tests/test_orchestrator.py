@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
+from coreason_auditor.exceptions import ComplianceViolationError
 from coreason_auditor.models import (
     AgentConfig,
     AIBOMObject,
@@ -112,3 +113,45 @@ class TestAuditOrchestrator(unittest.TestCase):
         path = "out.pdf"
         self.orchestrator.export_to_pdf(pkg, path)
         self.mock_pdf_gen.generate_report.assert_called_once_with(pkg, path)
+
+    def test_critical_uncovered_failure(self) -> None:
+        """Test that uncovered critical requirements raise an exception."""
+        # Setup: Critical Req with NO coverage
+        crit_req = Requirement(req_id="CRIT-1", desc="Important", critical=True)
+        config = AgentConfig(requirements=[crit_req], coverage_map={})
+
+        # Mock RTM return
+        mock_rtm = TraceabilityMatrix(
+            requirements=[crit_req], tests=[], coverage_map={}, overall_status=RequirementStatus.UNCOVERED
+        )
+        self.mock_rtm_engine.generate_matrix.return_value = mock_rtm
+
+        with self.assertRaises(ComplianceViolationError):
+            self.orchestrator.generate_audit_package(
+                config,
+                self.assay_report,
+                self.bom_input,
+                self.user_id,
+                self.agent_version,
+            )
+
+    def test_non_critical_uncovered_success(self) -> None:
+        """Test that uncovered non-critical requirements do NOT raise exception."""
+        # Setup: Non-Critical Req with NO coverage
+        non_crit = Requirement(req_id="OPT-1", desc="Optional", critical=False)
+        config = AgentConfig(requirements=[non_crit], coverage_map={})
+
+        mock_rtm = TraceabilityMatrix(
+            requirements=[non_crit], tests=[], coverage_map={}, overall_status=RequirementStatus.UNCOVERED
+        )
+        self.mock_rtm_engine.generate_matrix.return_value = mock_rtm
+
+        # Should NOT raise
+        pkg = self.orchestrator.generate_audit_package(
+            config,
+            self.assay_report,
+            self.bom_input,
+            self.user_id,
+            self.agent_version,
+        )
+        self.assertIsInstance(pkg, AuditPackage)
