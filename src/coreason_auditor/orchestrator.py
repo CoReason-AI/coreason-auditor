@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
+from coreason_auditor.exceptions import ComplianceViolationError
 from coreason_auditor.models import (
     AgentConfig,
     AssayReport,
@@ -68,6 +69,17 @@ class AuditOrchestrator:
 
         # 2. Generate Traceability Matrix
         rtm = self.traceability_engine.generate_matrix(agent_config, assay_report)
+
+        # CRITICAL: Enforce coverage for critical requirements
+        for req in rtm.requirements:
+            if req.critical:
+                covered_tests = rtm.coverage_map.get(req.req_id)
+                if not covered_tests:
+                    logger.error(f"Critical requirement '{req.req_id}' is uncovered. Aborting generation.")
+                    raise ComplianceViolationError(
+                        f"Critical requirement '{req.req_id}' ({req.desc}) is UNCOVERED. "
+                        "All critical requirements must have at least one covering test."
+                    )
 
         # 3. Generate Deviation Report (Session Replay)
         # Note: SessionReplayer fetches sessions.

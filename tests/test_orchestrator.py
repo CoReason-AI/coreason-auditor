@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
+from coreason_auditor.exceptions import ComplianceViolationError
 from coreason_auditor.models import (
     AgentConfig,
     AIBOMObject,
@@ -112,3 +113,131 @@ class TestAuditOrchestrator(unittest.TestCase):
         path = "out.pdf"
         self.orchestrator.export_to_pdf(pkg, path)
         self.mock_pdf_gen.generate_report.assert_called_once_with(pkg, path)
+
+    def test_critical_uncovered_failure(self) -> None:
+        """Test that uncovered critical requirements raise an exception."""
+        # Setup: Critical Req with NO coverage
+        crit_req = Requirement(req_id="CRIT-1", desc="Important", critical=True)
+        config = AgentConfig(requirements=[crit_req], coverage_map={})
+
+        # Mock RTM return
+        mock_rtm = TraceabilityMatrix(
+            requirements=[crit_req], tests=[], coverage_map={}, overall_status=RequirementStatus.UNCOVERED
+        )
+        self.mock_rtm_engine.generate_matrix.return_value = mock_rtm
+
+        with self.assertRaises(ComplianceViolationError):
+            self.orchestrator.generate_audit_package(
+                config,
+                self.assay_report,
+                self.bom_input,
+                self.user_id,
+                self.agent_version,
+            )
+
+    def test_non_critical_uncovered_success(self) -> None:
+        """Test that uncovered non-critical requirements do NOT raise exception."""
+        # Setup: Non-Critical Req with NO coverage
+        non_crit = Requirement(req_id="OPT-1", desc="Optional", critical=False)
+        config = AgentConfig(requirements=[non_crit], coverage_map={})
+
+        mock_rtm = TraceabilityMatrix(
+            requirements=[non_crit], tests=[], coverage_map={}, overall_status=RequirementStatus.UNCOVERED
+        )
+        self.mock_rtm_engine.generate_matrix.return_value = mock_rtm
+
+        # Should NOT raise
+        pkg = self.orchestrator.generate_audit_package(
+            config,
+            self.assay_report,
+            self.bom_input,
+            self.user_id,
+            self.agent_version,
+        )
+        self.assertIsInstance(pkg, AuditPackage)
+
+    def test_critical_req_with_empty_list_coverage(self) -> None:
+        """Test that a critical requirement with an empty list [] in coverage map fails."""
+        crit_req = Requirement(req_id="CRIT-2", desc="Empty List Coverage", critical=True)
+        # Explicitly map to empty list
+        config = AgentConfig(requirements=[crit_req], coverage_map={"CRIT-2": []})
+
+        mock_rtm = TraceabilityMatrix(
+            requirements=[crit_req], tests=[], coverage_map={"CRIT-2": []}, overall_status=RequirementStatus.UNCOVERED
+        )
+        self.mock_rtm_engine.generate_matrix.return_value = mock_rtm
+
+        with self.assertRaises(ComplianceViolationError):
+            self.orchestrator.generate_audit_package(
+                config,
+                self.assay_report,
+                self.bom_input,
+                self.user_id,
+                self.agent_version,
+            )
+
+    def test_mixed_criticality_failure(self) -> None:
+        """
+        Test a complex scenario with:
+        1. Critical Covered (OK)
+        2. Non-Critical Uncovered (OK)
+        3. Critical Uncovered (FAIL - Trigger)
+        """
+        reqs = [
+            Requirement(req_id="C-COV", desc="Critical Covered", critical=True),
+            Requirement(req_id="NC-UNCOV", desc="Non-Critical Uncovered", critical=False),
+            Requirement(req_id="C-UNCOV", desc="Critical Uncovered", critical=True),
+        ]
+
+        cov_map = {"C-COV": ["T-1"], "NC-UNCOV": [], "C-UNCOV": []}
+
+        config = AgentConfig(requirements=reqs, coverage_map=cov_map)
+
+        # Test T-1 exists
+        tests = [ComplianceTest(test_id="T-1", result="PASS")]
+
+        mock_rtm = TraceabilityMatrix(
+            requirements=reqs,
+            tests=tests,
+            coverage_map=cov_map,
+            overall_status=RequirementStatus.UNCOVERED,  # or COVERED_FAILED/MIXED
+        )
+        self.mock_rtm_engine.generate_matrix.return_value = mock_rtm
+
+        # Must raise because C-UNCOV is critical and has no tests
+        with self.assertRaises(ComplianceViolationError):
+            self.orchestrator.generate_audit_package(
+                config,
+                AssayReport(results=tests),
+                self.bom_input,
+                self.user_id,
+                self.agent_version,
+            )
+
+    def test_critical_covered_but_test_failed_success(self) -> None:
+        """
+        Test that if a critical requirement IS covered, but the test FAILS,
+        we do NOT abort generation. We want to report the failure, not crash.
+        """
+        crit_req = Requirement(req_id="CRIT-FAIL", desc="Critical Failed", critical=True)
+        cov_map = {"CRIT-FAIL": ["T-FAIL"]}
+        config = AgentConfig(requirements=[crit_req], coverage_map=cov_map)
+
+        # Test exists but result is FAIL
+        tests = [ComplianceTest(test_id="T-FAIL", result="FAIL")]
+
+        mock_rtm = TraceabilityMatrix(
+            requirements=[crit_req], tests=tests, coverage_map=cov_map, overall_status=RequirementStatus.COVERED_FAILED
+        )
+        self.mock_rtm_engine.generate_matrix.return_value = mock_rtm
+
+        # Should NOT raise exception. The failure is recorded in the report, generation proceeds.
+        pkg = self.orchestrator.generate_audit_package(
+            config,
+            AssayReport(results=tests),
+            self.bom_input,
+            self.user_id,
+            self.agent_version,
+        )
+        self.assertIsInstance(pkg, AuditPackage)
+        self.assertEqual(pkg.rtm.overall_status, RequirementStatus.COVERED_FAILED)
