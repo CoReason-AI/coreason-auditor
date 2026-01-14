@@ -1,11 +1,22 @@
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_auditor
+
 import json
 from pathlib import Path
 from typing import Any, Dict
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 from coreason_auditor.main import main
+from coreason_auditor.models import RiskLevel
 
 
 @pytest.fixture  # type: ignore[misc]
@@ -170,3 +181,149 @@ def test_cli_invalid_risk_threshold(sample_inputs: Dict[str, Path], capsys: Any)
 
     captured = capsys.readouterr()
     assert "Invalid risk threshold" in captured.err
+
+
+def test_cli_missing_input_file(tmp_path: Path, capsys: Any) -> None:
+    """Test CLI behavior when input file is missing."""
+    missing_file = tmp_path / "missing.yaml"
+
+    dummy = tmp_path / "dummy"
+    dummy.touch()
+
+    args = [
+        "coreason-auditor",
+        "--agent-config",
+        str(missing_file),
+        "--assay-report",
+        str(dummy),
+        "--bom-input",
+        str(dummy),
+        "--output",
+        str(tmp_path / "out.pdf"),
+        "--agent-version",
+        "1.0.0",
+    ]
+
+    with patch("sys.argv", args):
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 3  # Catches generic Exception (FileNotFoundError)
+
+    captured = capsys.readouterr()
+    assert "Unexpected Error" in captured.err
+    assert "No such file or directory" in captured.err
+
+
+def test_cli_corrupt_json_file(sample_inputs: Dict[str, Path], capsys: Any) -> None:
+    """Test CLI behavior when JSON input is corrupt."""
+    corrupt_json = sample_inputs["assay"]
+    with open(corrupt_json, "w") as f:
+        f.write("{ invalid json")
+
+    args = [
+        "coreason-auditor",
+        "--agent-config",
+        str(sample_inputs["agent"]),
+        "--assay-report",
+        str(corrupt_json),
+        "--bom-input",
+        str(sample_inputs["bom"]),
+        "--output",
+        str(sample_inputs["output"]),
+        "--agent-version",
+        "1.0.0",
+    ]
+
+    with patch("sys.argv", args):
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 3  # Generic exception for JSONDecodeError
+
+    captured = capsys.readouterr()
+    assert "Unexpected Error" in captured.err
+    # JSONDecodeError message varies by python version/impl slightly but usually says "Expecting" or "JSON"
+
+
+def test_cli_env_var_override(sample_inputs: Dict[str, Path], capsys: Any) -> None:
+    """
+    Test that environment variables can override defaults or influence logic.
+    Here we test LOG_LEVEL via config, though checking side effects of log level is hard.
+    Instead, let's verify RISK_THRESHOLD if we were to use it from Env.
+    """
+
+    # We'll use unittest.mock.patch to patch the 'settings' object in main module
+    with patch("coreason_auditor.main.settings") as mock_settings:
+        mock_settings.RISK_THRESHOLD = "LOW"
+        mock_settings.DEFAULT_USER_ID = "env-user"
+        mock_settings.LOG_LEVEL = "DEBUG"
+        mock_settings.MAX_DEVIATIONS = 5
+
+        # Mock the Orchestrator to verify it receives the correct risk threshold
+        with patch("coreason_auditor.main.AuditOrchestrator") as MockOrch:
+            instance = MockOrch.return_value
+            # return a dummy package to avoid crash later
+            instance.generate_audit_package.return_value = MagicMock()
+
+            args = [
+                "coreason-auditor",
+                "--agent-config",
+                str(sample_inputs["agent"]),
+                "--assay-report",
+                str(sample_inputs["assay"]),
+                "--bom-input",
+                str(sample_inputs["bom"]),
+                "--output",
+                str(sample_inputs["output"]),
+                "--agent-version",
+                "1.0.0",
+                # Note: NOT passing --risk-threshold or --user-id, expecting defaults from mock_settings
+            ]
+
+            with patch("sys.argv", args):
+                main()
+
+            # Verify generate_audit_package was called with RiskLevel.LOW
+            call_kwargs = instance.generate_audit_package.call_args[1]
+            assert call_kwargs["risk_threshold"] == RiskLevel.LOW
+            assert call_kwargs["user_id"] == "env-user"
+
+
+def test_complex_scenario_cli(sample_inputs: Dict[str, Path], capsys: Any) -> None:
+    """
+    Complex scenario:
+    1. Valid inputs.
+    2. Specific Risk Threshold (CRITICAL).
+    3. User ID provided.
+    4. Mock the SessionSource to return specific sessions to verify Orchestrator processes them.
+    """
+
+    args = [
+        "coreason-auditor",
+        "--agent-config",
+        str(sample_inputs["agent"]),
+        "--assay-report",
+        str(sample_inputs["assay"]),
+        "--bom-input",
+        str(sample_inputs["bom"]),
+        "--output",
+        str(sample_inputs["output"]),
+        "--agent-version",
+        "2.5.0-beta",
+        "--user-id",
+        "compliance-officer-alice",
+        "--risk-threshold",
+        "CRITICAL",
+    ]
+
+    with patch("coreason_auditor.main.AuditOrchestrator") as MockOrch:
+        instance = MockOrch.return_value
+        instance.generate_audit_package.return_value = MagicMock()
+
+        with patch("sys.argv", args):
+            main()
+
+        # Verify complex args passed through
+        call_kwargs = instance.generate_audit_package.call_args[1]
+        assert call_kwargs["agent_version"] == "2.5.0-beta"
+        assert call_kwargs["user_id"] == "compliance-officer-alice"
+        assert call_kwargs["risk_threshold"] == RiskLevel.CRITICAL

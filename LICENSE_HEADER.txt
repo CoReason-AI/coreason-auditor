@@ -7,11 +7,3 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 #
 # Source Code: https://github.com/CoReason-AI/coreason_auditor
-
-
-class ComplianceViolationError(Exception):
-    """
-    Raised when a compliance check fails, such as an uncovered critical requirement.
-    """
-
-    pass
