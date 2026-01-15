@@ -52,7 +52,13 @@ def sample_inputs(tmp_path: Path) -> Dict[str, Path]:
     with open(bom_path, "w") as f:
         json.dump(bom_input, f)
 
-    return {"agent": yaml_path, "assay": assay_path, "bom": bom_path, "output": tmp_path / "report.pdf"}
+    return {
+        "agent": yaml_path,
+        "assay": assay_path,
+        "bom": bom_path,
+        "output": tmp_path / "report.pdf",
+        "bom_output": tmp_path / "bom-out.json",
+    }
 
 
 def test_cli_happy_path(sample_inputs: Dict[str, Path], capsys: Any) -> None:
@@ -85,6 +91,39 @@ def test_cli_happy_path(sample_inputs: Dict[str, Path], capsys: Any) -> None:
     # Verify Logs
     captured = capsys.readouterr()
     assert "Audit Package generation completed successfully." in captured.err
+
+
+def test_cli_bom_export(sample_inputs: Dict[str, Path], capsys: Any) -> None:
+    """Test CLI execution with BOM export."""
+
+    args = [
+        "coreason-auditor",
+        "--agent-config",
+        str(sample_inputs["agent"]),
+        "--assay-report",
+        str(sample_inputs["assay"]),
+        "--bom-input",
+        str(sample_inputs["bom"]),
+        "--output",
+        str(sample_inputs["output"]),
+        "--bom-output",
+        str(sample_inputs["bom_output"]),
+        "--agent-version",
+        "1.0.0",
+    ]
+
+    with patch("sys.argv", args):
+        main()
+
+    # Verify BOM output created
+    assert sample_inputs["bom_output"].exists()
+    with open(sample_inputs["bom_output"], "r") as f:
+        bom_data = json.load(f)
+
+    # Basic CycloneDX structure check
+    assert "bomFormat" in bom_data
+    assert "components" in bom_data
+    assert bom_data["bomFormat"] == "CycloneDX"
 
 
 def test_cli_validation_error(tmp_path: Path, capsys: Any) -> None:
@@ -327,3 +366,97 @@ def test_complex_scenario_cli(sample_inputs: Dict[str, Path], capsys: Any) -> No
         assert call_kwargs["agent_version"] == "2.5.0-beta"
         assert call_kwargs["user_id"] == "compliance-officer-alice"
         assert call_kwargs["risk_threshold"] == RiskLevel.CRITICAL
+
+
+def test_cli_bom_export_io_error(sample_inputs: Dict[str, Path], capsys: Any) -> None:
+    """
+    Test edge case: Writing BOM to a read-only directory or invalid path triggers exit.
+    """
+    # Assuming /invalid/path doesn't exist and we can't write there.
+    # A cleaner way is to mock open to raise PermissionError.
+
+    args = [
+        "coreason-auditor",
+        "--agent-config",
+        str(sample_inputs["agent"]),
+        "--assay-report",
+        str(sample_inputs["assay"]),
+        "--bom-input",
+        str(sample_inputs["bom"]),
+        "--output",
+        str(sample_inputs["output"]),
+        "--bom-output",
+        "/invalid/path/bom.json",
+        "--agent-version",
+        "1.0.0",
+    ]
+
+    with patch(
+        "builtins.open",
+        side_effect=[
+            open(sample_inputs["agent"], "r"),  # agent
+            open(sample_inputs["assay"], "r"),  # assay
+            open(sample_inputs["bom"], "r"),  # bom input
+            PermissionError("Mock Permission Denied"),  # bom output write
+        ],
+    ):
+        with patch("sys.argv", args):
+            # We expect a system exit 3 (Unexpected Error) or similar, depending on where it's caught
+            with pytest.raises(SystemExit) as exc:
+                main()
+            assert exc.value.code == 3
+
+    captured = capsys.readouterr()
+    assert "Unexpected Error" in captured.err
+    assert "Mock Permission Denied" in captured.err
+
+
+def test_cli_full_workflow_bom_verification(sample_inputs: Dict[str, Path], capsys: Any) -> None:
+    """
+    Complex Scenario: Run the full workflow and verify the integrity
+    of data inside the exported BOM JSON matching the input.
+    """
+
+    args = [
+        "coreason-auditor",
+        "--agent-config",
+        str(sample_inputs["agent"]),
+        "--assay-report",
+        str(sample_inputs["assay"]),
+        "--bom-input",
+        str(sample_inputs["bom"]),
+        "--output",
+        str(sample_inputs["output"]),
+        "--bom-output",
+        str(sample_inputs["bom_output"]),
+        "--agent-version",
+        "1.0.0",
+    ]
+
+    with patch("sys.argv", args):
+        main()
+
+    # 1. Verify Output Files Exist
+    assert sample_inputs["output"].exists()
+    assert sample_inputs["bom_output"].exists()
+
+    # 2. Deep Dive into BOM JSON Content
+    with open(sample_inputs["bom_output"], "r") as f:
+        bom = json.load(f)
+
+    # Check Metadata
+    assert bom["metadata"]["component"]["name"] == "llama-3"
+    assert bom["metadata"]["component"]["version"] == "1.0"
+
+    # Check Components (Dependencies)
+    # We expect 'numpy' from sample_inputs
+    components = bom.get("components", [])
+    numpy_comp = next((c for c in components if c["name"] == "numpy"), None)
+    assert numpy_comp is not None
+    assert numpy_comp["version"] == "1.0"
+    assert numpy_comp["type"] == "library"
+
+    # Check Data Lineage (represented as data component)
+    job_comp = next((c for c in components if c["name"] == "ingestion-job-job-1"), None)
+    assert job_comp is not None
+    assert job_comp["type"] == "data"
