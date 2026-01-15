@@ -60,6 +60,7 @@ def main() -> None:
 
     # Output
     parser.add_argument("--output", required=True, type=Path, help="Path to output PDF file")
+    parser.add_argument("--bom-output", required=False, type=Path, help="Path to output BOM JSON file")
 
     # Meta
     parser.add_argument("--agent-version", required=True, type=str, help="Agent version string")
@@ -132,6 +133,11 @@ def main() -> None:
         # 5. Export
         logger.info(f"Exporting report to {args.output}")
         orchestrator.export_to_pdf(package, str(args.output))
+
+        if args.bom_output:
+            logger.info(f"Exporting BOM to {args.bom_output}")
+            with open(args.bom_output, "w", encoding="utf-8") as f:
+                json.dump(package.bom.cyclonedx_bom, f, indent=2)
 
         logger.info("Audit Package generation completed successfully.")
 
