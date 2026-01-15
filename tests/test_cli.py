@@ -52,7 +52,13 @@ def sample_inputs(tmp_path: Path) -> Dict[str, Path]:
     with open(bom_path, "w") as f:
         json.dump(bom_input, f)
 
-    return {"agent": yaml_path, "assay": assay_path, "bom": bom_path, "output": tmp_path / "report.pdf"}
+    return {
+        "agent": yaml_path,
+        "assay": assay_path,
+        "bom": bom_path,
+        "output": tmp_path / "report.pdf",
+        "bom_output": tmp_path / "bom-out.json",
+    }
 
 
 def test_cli_happy_path(sample_inputs: Dict[str, Path], capsys: Any) -> None:
@@ -85,6 +91,39 @@ def test_cli_happy_path(sample_inputs: Dict[str, Path], capsys: Any) -> None:
     # Verify Logs
     captured = capsys.readouterr()
     assert "Audit Package generation completed successfully." in captured.err
+
+
+def test_cli_bom_export(sample_inputs: Dict[str, Path], capsys: Any) -> None:
+    """Test CLI execution with BOM export."""
+
+    args = [
+        "coreason-auditor",
+        "--agent-config",
+        str(sample_inputs["agent"]),
+        "--assay-report",
+        str(sample_inputs["assay"]),
+        "--bom-input",
+        str(sample_inputs["bom"]),
+        "--output",
+        str(sample_inputs["output"]),
+        "--bom-output",
+        str(sample_inputs["bom_output"]),
+        "--agent-version",
+        "1.0.0",
+    ]
+
+    with patch("sys.argv", args):
+        main()
+
+    # Verify BOM output created
+    assert sample_inputs["bom_output"].exists()
+    with open(sample_inputs["bom_output"], "r") as f:
+        bom_data = json.load(f)
+
+    # Basic CycloneDX structure check
+    assert "bomFormat" in bom_data
+    assert "components" in bom_data
+    assert bom_data["bomFormat"] == "CycloneDX"
 
 
 def test_cli_validation_error(tmp_path: Path, capsys: Any) -> None:
