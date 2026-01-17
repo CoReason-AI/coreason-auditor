@@ -19,8 +19,9 @@ class MockSessionSource(SessionSource):
     Mock implementation of SessionSource for testing and development.
     """
 
-    def __init__(self, sessions: Optional[List[Session]] = None):
+    def __init__(self, sessions: Optional[List[Session]] = None, intervention_count: int = 0):
         self._sessions = {s.session_id: s for s in sessions} if sessions else {}
+        self._intervention_count = intervention_count
 
     def get_session(self, session_id: str) -> Optional[Session]:
         return self._sessions.get(session_id)
@@ -29,6 +30,9 @@ class MockSessionSource(SessionSource):
         # Simple filter
         matching = [s for s in self._sessions.values() if s.risk_level == risk_level]
         return matching[:limit]
+
+    def get_intervention_count(self, agent_version: str) -> int:
+        return self._intervention_count
 
     def add_session(self, session: Session) -> None:
         self._sessions[session.session_id] = session

@@ -46,6 +46,19 @@ class SessionSource(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_intervention_count(self, agent_version: str) -> int:  # pragma: no cover
+        """
+        Retrieves the total count of human interventions for the given agent version.
+
+        Args:
+            agent_version: The version string of the agent.
+
+        Returns:
+            The count of interventions.
+        """
+        pass
+
 
 class AegisService(ABC):
     """
