@@ -95,7 +95,10 @@ class AuditOrchestrator:
         # Note: SessionReplayer fetches sessions.
         deviations = self.session_replayer.get_deviation_report(risk_level=risk_threshold, limit=max_deviations)
 
-        # 4. Assemble Package
+        # 4. Fetch Intervention Count
+        interventions = self.session_replayer.get_intervention_count(agent_version)
+
+        # 5. Assemble Package
         package = AuditPackage(
             id=uuid.uuid4(),
             agent_version=agent_version,
@@ -104,7 +107,7 @@ class AuditOrchestrator:
             bom=bom,
             rtm=rtm,
             deviation_report=deviations,
-            human_interventions=0,  # Placeholder or derived from sessions
+            human_interventions=interventions,
             document_hash="",  # To be filled by signer
             electronic_signature="",  # To be filled by signer
         )

@@ -77,6 +77,13 @@ class SessionReplayer:
         logger.info(f"Found {len(processed_sessions)} deviation sessions.")
         return processed_sessions
 
+    def get_intervention_count(self, agent_version: str) -> int:
+        """
+        Retrieves the total count of human interventions for the given agent version.
+        """
+        logger.info(f"Fetching intervention count for agent version {agent_version}...")
+        return self.source.get_intervention_count(agent_version)
+
     def _process_session_in_place(self, session: Session) -> None:
         """Helper to decrypt and sort a session object in place."""
         if session.violation_summary:
