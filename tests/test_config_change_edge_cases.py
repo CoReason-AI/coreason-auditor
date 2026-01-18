@@ -162,12 +162,12 @@ class TestConfigChangePDFEdgeCases:
 
     def test_pagination_stress(self, tmp_path: Any, base_package: AuditPackage) -> None:
         """
-        Complex Scenario: Generate a report with config changes.
+        Complex Scenario: Generate a report with 80+ config changes.
         Verifies that the table spans multiple pages and doesn't crash.
         """
         changes = []
-        # Use small count for debug first
-        count = 5
+        # 80 items should cover about 2 pages
+        count = 80
         for i in range(count):
             changes.append(
                 ConfigChange(
@@ -195,9 +195,9 @@ class TestConfigChangePDFEdgeCases:
         # Verify Section Header
         assert "5. Configuration Change Log" in full_text
         # Verify first item
-        assert "stress-0" in full_text
+        assert "user-0" in full_text
         # Verify last item
-        assert f"stress-{count-1}" in full_text
+        assert f"user-{count-1}" in full_text
 
     def test_content_safety_injection(self, tmp_path: Any, base_package: AuditPackage) -> None:
         """
