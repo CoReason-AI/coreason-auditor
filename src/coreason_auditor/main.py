@@ -33,6 +33,7 @@ from coreason_auditor.session_replayer import SessionReplayer
 from coreason_auditor.signer import AuditSigner
 from coreason_auditor.traceability_engine import TraceabilityEngine
 from coreason_auditor.utils.logger import logger
+from coreason_auditor.utils.seeder import populate_demo_data
 
 
 def load_yaml(path: Path) -> Dict[str, Any]:
@@ -95,8 +96,8 @@ def main() -> None:
         aegis_service = MockAegisService()
         identity_service = MockIdentityService()
 
-        # TODO: Pre-populate MockSessionSource with data if needed for demo
-        # For now, it will return empty deviations unless we inject something.
+        # Pre-populate MockSessionSource with data for demo (User Story B)
+        populate_demo_data(session_source)
 
         # 3. Instantiate Core Components
         aibom_generator = AIBOMGenerator()
