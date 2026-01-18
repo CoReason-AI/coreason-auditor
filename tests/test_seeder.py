@@ -18,6 +18,7 @@ from coreason_auditor.models import (
     AIBOMObject,
     AssayReport,
     BOMInput,
+    ConfigChange,
     EventType,
     RequirementStatus,
     RiskLevel,
@@ -43,6 +44,9 @@ class DummySessionSource(SessionSource):
 
     def get_intervention_count(self, agent_version: str) -> int:
         return 0
+
+    def get_config_changes(self, limit: int = 100) -> list[ConfigChange]:
+        return []
 
 
 class TestSeeder(unittest.TestCase):
