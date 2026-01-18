@@ -76,7 +76,7 @@ def populate_demo_data(source: SessionSource) -> None:
     # In a real app, we wouldn't be "seeding" a live database this way.
     if isinstance(source, MockSessionSource):
         source.add_session(session)
-    else:  # pragma: no cover
+    else:
         # In case we ever use this with a real source in a test harness
         # We might want to warn or just ignore.
         pass
