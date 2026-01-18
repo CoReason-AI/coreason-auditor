@@ -181,8 +181,8 @@ class PDFReportGenerator:
 
         if audit_package.config_changes:
             config_table_data = self._build_config_changes_table_data(audit_package.config_changes)
-            # Adjusted widths to fit 468pt (Total ~468pt)
-            story.append(self._create_data_table(config_table_data, col_widths=[70, 50, 60, 60, 60, 100, 68]))
+            # Adjusted widths to fit 468pt (Total ~450pt for safety margin)
+            story.append(self._create_data_table(config_table_data, col_widths=[65, 45, 60, 60, 60, 100, 60]))
         else:
             story.append(Paragraph("No configuration changes recorded.", normal_style))
         story.append(Spacer(1, 24))
