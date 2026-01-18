@@ -24,6 +24,7 @@ from coreason_auditor.models import (
     AIBOMObject,
     AuditPackage,
     ComplianceTest,
+    ConfigChange,
     EventType,
     Requirement,
     RequirementStatus,
@@ -79,6 +80,7 @@ def sample_audit_package() -> AuditPackage:
         bom=bom,
         rtm=rtm,
         deviation_report=deviations,
+        config_changes=[],
         human_interventions=0,
         document_hash="dummyhash123",
         electronic_signature="dummysig",
@@ -750,3 +752,38 @@ def test_transcript_whitespace_and_formatting(tmp_path: Any, sample_audit_packag
     # Newlines are replaced by <br/>, pypdf often sees them as newlines or spaces depending on layout
     assert "Line 1" in text
     assert "Line 2" in text
+
+
+def test_config_change_log_rendering(tmp_path: Any, sample_audit_package: AuditPackage) -> None:
+    """Test rendering of the Configuration Change Log."""
+    if PdfReader is None:
+        pytest.skip("pypdf not installed")
+
+    changes = [
+        ConfigChange(
+            change_id="c1",
+            timestamp=datetime(2025, 1, 10, 14, 0, 0, tzinfo=timezone.utc),
+            user_id="j.doe",
+            field_changed="system_prompt",
+            old_value="Ver A",
+            new_value="Ver B",
+            reason="Updated tone",
+            status="Approved",
+        )
+    ]
+    sample_audit_package.config_changes = changes
+
+    output_file = tmp_path / "config_log.pdf"
+    generator = PDFReportGenerator()
+    generator.generate_report(sample_audit_package, str(output_file))
+
+    reader = PdfReader(str(output_file))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+
+    assert "5. Configuration Change Log" in text
+    assert "j.doe" in text
+    assert "system_prompt" in text
+    assert "Ver A" in text
+    assert "Updated tone" in text
