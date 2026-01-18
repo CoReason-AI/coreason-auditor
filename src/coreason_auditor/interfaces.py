@@ -11,7 +11,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from coreason_auditor.models import RiskLevel, Session
+from coreason_auditor.models import ConfigChange, RiskLevel, Session
 
 
 class SessionSource(ABC):
@@ -56,6 +56,19 @@ class SessionSource(ABC):
 
         Returns:
             The count of interventions.
+        """
+        pass
+
+    @abstractmethod
+    def get_config_changes(self, limit: int = 100) -> List[ConfigChange]:  # pragma: no cover
+        """
+        Retrieves a list of configuration changes for the audit trail.
+
+        Args:
+            limit: Maximum number of records to return.
+
+        Returns:
+            A list of ConfigChange objects.
         """
         pass
 

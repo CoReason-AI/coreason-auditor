@@ -136,6 +136,22 @@ class AIBOMObject(BaseModel):
     cyclonedx_bom: Dict[str, Any] = Field(default_factory=dict, description="The full CycloneDX BOM structure")
 
 
+class ConfigChange(BaseModel):
+    """
+    Represents a change record in the configuration audit trail.
+    User Story C: The "Audit Trail Review".
+    """
+
+    change_id: str = Field(..., description="Unique identifier for the change event")
+    timestamp: datetime = Field(..., description="When the change occurred")
+    user_id: str = Field(..., description="User who performed the change")
+    field_changed: str = Field(..., description="The configuration key/field that was modified")
+    old_value: str = Field(..., description="Value before change")
+    new_value: str = Field(..., description="Value after change")
+    reason: str = Field(..., description="Justification for the change")
+    status: str = Field(..., description="Approval status (e.g., 'Signed & Approved')")
+
+
 class AuditPackage(BaseModel):
     id: UUID
     agent_version: str
