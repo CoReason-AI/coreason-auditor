@@ -11,7 +11,7 @@
 from typing import List, Optional
 
 from coreason_auditor.interfaces import AegisService, IdentityService, SessionSource
-from coreason_auditor.models import RiskLevel, Session
+from coreason_auditor.models import ConfigChange, RiskLevel, Session
 
 
 class MockSessionSource(SessionSource):
@@ -22,6 +22,7 @@ class MockSessionSource(SessionSource):
     def __init__(self, sessions: Optional[List[Session]] = None, intervention_count: int = 0):
         self._sessions = {s.session_id: s for s in sessions} if sessions else {}
         self._intervention_count = intervention_count
+        self._config_changes: List[ConfigChange] = []
 
     def get_session(self, session_id: str) -> Optional[Session]:
         return self._sessions.get(session_id)
@@ -34,8 +35,16 @@ class MockSessionSource(SessionSource):
     def get_intervention_count(self, agent_version: str) -> int:
         return self._intervention_count
 
+    def get_config_changes(self, limit: int = 100) -> List[ConfigChange]:
+        # Sort by timestamp desc, then limit
+        sorted_changes = sorted(self._config_changes, key=lambda x: x.timestamp, reverse=True)
+        return sorted_changes[:limit]
+
     def add_session(self, session: Session) -> None:
         self._sessions[session.session_id] = session
+
+    def add_config_change(self, change: ConfigChange) -> None:
+        self._config_changes.append(change)
 
 
 class MockAegisService(AegisService):
