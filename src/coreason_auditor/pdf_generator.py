@@ -175,6 +175,18 @@ class PDFReportGenerator:
 
         story.append(Spacer(1, 36))
 
+        # --- Config Changes Section ---
+        story.append(Paragraph("5. Configuration Change Log", heading_style))
+        story.append(Spacer(1, 6))
+
+        if audit_package.config_changes:
+            config_table_data = self._build_config_changes_table_data(audit_package.config_changes)
+            # Adjusted widths to fit 468pt (Total ~468pt)
+            story.append(self._create_data_table(config_table_data, col_widths=[70, 50, 60, 60, 60, 100, 68]))
+        else:
+            story.append(Paragraph("No configuration changes recorded.", normal_style))
+        story.append(Spacer(1, 24))
+
         # --- Signature Page ---
         self._append_signature_page(story, audit_package)
 
@@ -427,5 +439,29 @@ class PDFReportGenerator:
             violation_para = Paragraph(violation_text, normal_style)
 
             rows.append([sess_id, ts, risk, violation_para])
+
+        return rows
+
+    def _build_config_changes_table_data(self, changes: List[Any]) -> List[List[Any]]:
+        """Constructs the Configuration Change Log table data rows."""
+        headers = ["Date", "User", "Field", "From", "To", "Reason", "Status"]
+        rows = [headers]
+
+        styles = getSampleStyleSheet()
+        normal_style = styles["Normal"]
+
+        for change in changes:
+            ts = change.timestamp.strftime("%Y-%m-%d")
+            user = html.escape(change.user_id)
+            field = html.escape(change.field_changed)
+
+            # Wrap possibly long values
+            old_val = Paragraph(html.escape(change.old_value), normal_style)
+            new_val = Paragraph(html.escape(change.new_value), normal_style)
+            reason = Paragraph(html.escape(change.reason), normal_style)
+
+            status = html.escape(change.status)
+
+            rows.append([ts, user, field, old_val, new_val, reason, status])
 
         return rows

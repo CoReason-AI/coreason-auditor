@@ -162,6 +162,7 @@ class AuditPackage(BaseModel):
     bom: AIBOMObject  # The Ingredients
     rtm: TraceabilityMatrix  # The Tests
     deviation_report: List[Session]  # The Failures
+    config_changes: List[ConfigChange]  # Audit Trail
     human_interventions: int  # Count of HITL events
 
     # The Seal

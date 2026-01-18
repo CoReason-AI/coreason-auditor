@@ -46,6 +46,7 @@ class TestAuditSigner(unittest.TestCase):
                 overall_status=RequirementStatus.COVERED_PASSED,
             ),
             deviation_report=[],
+            config_changes=[],
             human_interventions=0,
             document_hash="",
             electronic_signature="",
