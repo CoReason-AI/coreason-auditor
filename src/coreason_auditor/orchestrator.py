@@ -98,7 +98,10 @@ class AuditOrchestrator:
         # 4. Fetch Intervention Count
         interventions = self.session_replayer.get_intervention_count(agent_version)
 
-        # 5. Assemble Package
+        # 5. Fetch Configuration Changes (Audit Trail)
+        config_changes = self.session_replayer.get_config_changes()
+
+        # 6. Assemble Package
         package = AuditPackage(
             id=uuid.uuid4(),
             agent_version=agent_version,
@@ -107,6 +110,7 @@ class AuditOrchestrator:
             bom=bom,
             rtm=rtm,
             deviation_report=deviations,
+            config_changes=config_changes,
             human_interventions=interventions,
             document_hash="",  # To be filled by signer
             electronic_signature="",  # To be filled by signer

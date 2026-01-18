@@ -11,7 +11,7 @@
 from typing import Any, List, Optional
 
 from coreason_auditor.interfaces import AegisService, SessionSource
-from coreason_auditor.models import RiskLevel, Session
+from coreason_auditor.models import ConfigChange, RiskLevel, Session
 from coreason_auditor.utils.logger import logger
 
 
@@ -83,6 +83,13 @@ class SessionReplayer:
         """
         logger.info(f"Fetching intervention count for agent version {agent_version}...")
         return self.source.get_intervention_count(agent_version)
+
+    def get_config_changes(self, limit: int = 100) -> List[ConfigChange]:
+        """
+        Retrieves the configuration change log.
+        """
+        logger.info(f"Fetching configuration changes (limit={limit})...")
+        return self.source.get_config_changes(limit)
 
     def _process_session_in_place(self, session: Session) -> None:
         """Helper to decrypt and sort a session object in place."""

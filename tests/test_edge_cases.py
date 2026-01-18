@@ -89,6 +89,7 @@ class TestEdgeCases(unittest.TestCase):
             bom=bom,
             rtm=tm,
             deviation_report=[session],
+            config_changes=[],
             human_interventions=0,
             document_hash="",
             electronic_signature="",
@@ -141,6 +142,7 @@ class TestEdgeCases(unittest.TestCase):
                     ],
                 )
             ],
+            config_changes=[],
             human_interventions=0,
             document_hash="",
             electronic_signature="",
