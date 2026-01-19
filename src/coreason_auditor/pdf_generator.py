@@ -1,13 +1,48 @@
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_auditor
+
 import html
-from typing import Any, List
+from typing import Any, List, Tuple
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    Flowable,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
-from coreason_auditor.models import AuditPackage
+from coreason_auditor.models import AuditPackage, EventType, Session
 from coreason_auditor.utils.logger import logger
+
+
+class HorizontalLine(Flowable):  # type: ignore[misc]
+    """Draws a horizontal line."""
+
+    def __init__(self, width: float) -> None:
+        super().__init__()
+        self.width = width
+
+    def wrap(self, availWidth: float, availHeight: float) -> Tuple[float, float]:
+        return (self.width, 1)
+
+    def draw(self) -> None:
+        self.canv.setStrokeColor(colors.lightgrey)
+        self.canv.line(0, 0, self.width, 0)
 
 
 class PDFReportGenerator:
@@ -26,6 +61,41 @@ class PDFReportGenerator:
         logger.info(f"Generating PDF report for Audit Package {audit_package.id} at {output_path}")
 
         doc = SimpleDocTemplate(output_path, pagesize=letter)
+
+        # Define the page template with header/footer
+        def header_footer(canvas: canvas.Canvas, doc: Any) -> None:
+            canvas.saveState()
+
+            # --- Header ---
+            canvas.setFont("Helvetica-Bold", 10)
+            canvas.drawString(inch, letter[1] - 0.5 * inch, "CoReason Audit Report")
+
+            canvas.setFont("Helvetica", 9)
+            generated_str = f"Generated: {audit_package.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            canvas.drawRightString(letter[0] - inch, letter[1] - 0.5 * inch, generated_str)
+
+            # Line separator
+            canvas.setStrokeColor(colors.grey)
+            canvas.line(inch, letter[1] - 0.6 * inch, letter[0] - inch, letter[1] - 0.6 * inch)
+
+            # --- Footer ---
+            canvas.setFont("Helvetica", 8)
+            page_num = canvas.getPageNumber()
+            canvas.drawString(inch, 0.5 * inch, "Confidential - CoReason Ecosystem")
+            canvas.drawCentredString(letter[0] / 2, 0.5 * inch, f"Page {page_num}")
+
+            if audit_package.document_hash:
+                # Small hash on bottom right
+                hash_short = (
+                    audit_package.document_hash[:16] + "..."
+                    if len(audit_package.document_hash) > 16
+                    else audit_package.document_hash
+                )
+                canvas.drawRightString(letter[0] - inch, 0.5 * inch, f"Hash: {hash_short}")
+
+            canvas.restoreState()
+
+        # Build the story
         styles = getSampleStyleSheet()
         story: List[Any] = []
 
@@ -34,9 +104,9 @@ class PDFReportGenerator:
         heading_style = styles["Heading2"]
         normal_style = styles["Normal"]
 
-        # --- Header ---
-        story.append(Paragraph("CoReason Audit Report", title_style))
-        story.append(Spacer(1, 12))
+        # Title Page Info
+        story.append(Paragraph("CoReason Audit Package", title_style))
+        story.append(Spacer(1, 24))
 
         header_data = [
             ["Generated At:", audit_package.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC")],
@@ -53,7 +123,7 @@ class PDFReportGenerator:
 
         bom = audit_package.bom
         bom_data = [
-            ["Model Identity:", Paragraph(bom.model_identity, normal_style)],
+            ["Model Identity:", Paragraph(html.escape(bom.model_identity), normal_style)],
         ]
         story.append(self._create_info_table(bom_data))
         story.append(Spacer(1, 12))
@@ -70,8 +140,6 @@ class PDFReportGenerator:
         # Dependencies
         story.append(Paragraph("Software Dependencies:", styles["Heading3"]))
         if bom.software_dependencies:
-            # Chunk dependencies to save space if needed, or just list them
-            # Let's list top 10 or all? All is safer for audit.
             dep_data = [[dep] for dep in bom.software_dependencies]
             story.append(self._create_list_table(dep_data, ["PackageSpec"]))
         else:
@@ -94,19 +162,158 @@ class PDFReportGenerator:
         if audit_package.deviation_report:
             deviation_table_data = self._build_deviation_table_data(audit_package.deviation_report)
             story.append(self._create_data_table(deviation_table_data, col_widths=[100, 100, 60, 200]))
+            story.append(Spacer(1, 24))
+
+            # --- Detailed Transcripts ---
+            # Added as requested to provide full forensic context
+            story.append(Paragraph("4. Detailed Session Transcripts", heading_style))
+            story.append(Spacer(1, 12))
+
+            self._append_detailed_transcripts(story, audit_package.deviation_report)
         else:
             story.append(Paragraph("No deviations reported.", normal_style))
 
+        story.append(Spacer(1, 36))
+
+        # --- Config Changes Section ---
+        story.append(Paragraph("5. Configuration Change Log", heading_style))
+        story.append(Spacer(1, 6))
+
+        if audit_package.config_changes:
+            config_table_data = self._build_config_changes_table_data(audit_package.config_changes)
+            # Adjusted widths to fit 468pt (Total ~450pt for safety margin)
+            story.append(self._create_data_table(config_table_data, col_widths=[65, 45, 60, 60, 60, 100, 60]))
+        else:
+            story.append(Paragraph("No configuration changes recorded.", normal_style))
         story.append(Spacer(1, 24))
 
-        # --- Signature Placeholder ---
-        # The actual signature is applied later, but we can show the hash if present
-        if audit_package.document_hash:
-            story.append(Paragraph("Document Security", heading_style))
-            story.append(Paragraph(f"Document Hash (SHA-256): {audit_package.document_hash}", normal_style))
+        # --- Signature Page ---
+        self._append_signature_page(story, audit_package)
 
-        doc.build(story)
+        # Build doc with header/footer callback
+        doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
         logger.info("PDF generation successful.")
+
+    def _append_detailed_transcripts(self, story: List[Any], sessions: List[Session]) -> None:
+        """
+        Appends detailed transcripts for each session in the deviation report.
+        Handles formatting for INPUT, THOUGHT, TOOL, and OUTPUT events.
+        """
+        styles = getSampleStyleSheet()
+
+        # Define styles for different event types
+        input_style = ParagraphStyle(
+            "EventInput",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            spaceBefore=6,
+            spaceAfter=6,
+            backColor=colors.whitesmoke,
+            borderPadding=4,
+        )
+
+        thought_style = ParagraphStyle(
+            "EventThought",
+            parent=styles["Italic"],
+            textColor=colors.dimgrey,
+            spaceBefore=4,
+            spaceAfter=4,
+            leftIndent=12,
+        )
+
+        tool_style = ParagraphStyle(
+            "EventTool",
+            parent=styles["Code"],
+            fontName="Courier",
+            fontSize=8,
+            textColor=colors.darkblue,
+            spaceBefore=4,
+            spaceAfter=4,
+            leftIndent=12,
+            backColor=colors.lightyellow,
+            borderPadding=2,
+        )
+
+        output_style = ParagraphStyle(
+            "EventOutput",
+            parent=styles["Normal"],
+            spaceBefore=6,
+            spaceAfter=6,
+            leftIndent=0,
+        )
+
+        header_style = styles["Heading3"]
+
+        for session in sessions:
+            # Session Header
+            ts_str = session.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")
+            header_text = f"Session: {session.session_id} | Time: {ts_str} | Risk: {session.risk_level.value}"
+            story.append(Paragraph(header_text, header_style))
+
+            # Violation Summary
+            if session.violation_summary:
+                violation_text = f"<b>Violation:</b> {html.escape(session.violation_summary)}"
+                story.append(Paragraph(violation_text, styles["Normal"]))
+
+            story.append(Spacer(1, 12))
+
+            if not session.events:
+                story.append(Paragraph("<i>No events recorded for this session.</i>", styles["Normal"]))
+
+            for event in session.events:
+                content_safe = html.escape(event.content).replace("\n", "<br/>")
+
+                if event.event_type == EventType.INPUT:
+                    label = "<b>User:</b> "
+                    story.append(Paragraph(label + content_safe, input_style))
+
+                elif event.event_type == EventType.THOUGHT:
+                    label = "<b>Reasoning:</b> "
+                    story.append(Paragraph(label + content_safe, thought_style))
+
+                elif event.event_type == EventType.TOOL:
+                    label = "<b>Tool Use:</b> "
+                    story.append(Paragraph(label + content_safe, tool_style))
+
+                elif event.event_type == EventType.OUTPUT:
+                    label = "<b>Agent:</b> "
+                    story.append(Paragraph(label + content_safe, output_style))
+
+            # Separator between sessions
+            story.append(Spacer(1, 24))
+            story.append(HorizontalLine(width=450))
+            story.append(Spacer(1, 24))
+
+    def _append_signature_page(self, story: List[Any], audit_package: AuditPackage) -> None:
+        """Appends the electronic signature page."""
+        styles = getSampleStyleSheet()
+
+        # Force page break so signature is on its own page (or clear separate section)
+        story.append(PageBreak())
+
+        story.append(Paragraph("Electronic Signature Page", styles["Heading1"]))
+        story.append(Spacer(1, 24))
+
+        story.append(Paragraph("This document has been electronically signed and approved.", styles["Normal"]))
+        story.append(Spacer(1, 36))
+
+        # Signature Block
+        sig_content = [
+            f"<b>Signed By:</b> {html.escape(audit_package.generated_by)}",
+            f"<b>Date:</b> {audit_package.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}",
+            "<b>Reason:</b> Regulatory Compliance Submission",
+            "<b>Authority:</b> CoReason Identity Service",
+        ]
+
+        if audit_package.electronic_signature:
+            sig_content.append(f"<b>Signature Hash:</b> {audit_package.electronic_signature}")
+
+        for line in sig_content:
+            story.append(Paragraph(line, styles["Normal"]))
+            story.append(Spacer(1, 6))
+
+        story.append(Spacer(1, 24))
+        story.append(Paragraph("<i>End of Document</i>", styles["Italic"]))
 
     def _create_info_table(self, data: List[List[Any]]) -> Table:
         """Creates a simple 2-column info table."""
@@ -127,7 +334,7 @@ class PDFReportGenerator:
     def _create_list_table(self, data: List[List[str]], headers: List[str]) -> Table:
         """Creates a simple list table with a header."""
         table_data = [headers] + data
-        t = Table(table_data, colWidths=[400])
+        t = Table(table_data, colWidths=[400], repeatRows=1)  # Repeat header if splits
         t.setStyle(
             TableStyle(
                 [
@@ -178,10 +385,6 @@ class PDFReportGenerator:
             safe_desc = html.escape(req.desc)
             desc = Paragraph(safe_desc, normal_style)  # Wrap text
 
-            # Determine status for this specific requirement
-            # The RTM object has overall_status, but we need per-requirement status logic
-            # Re-using logic from TraceabilityEngine conceptually, or just listing tests
-
             linked_test_ids = audit_package.rtm.coverage_map.get(req_id, [])
 
             test_summaries = []
@@ -214,16 +417,51 @@ class PDFReportGenerator:
         styles = getSampleStyleSheet()
         normal_style = styles["Normal"]
 
-        for dev in deviations:
-            # Expect dict, handle missing keys gracefully
-            sess_id = str(dev.get("session_id", "N/A"))
-            ts = str(dev.get("timestamp", "N/A"))
-            risk = str(dev.get("risk_level", "Unknown"))
+        for session in deviations:
+            sess_id = session.session_id
+            # Format timestamp nicely
+            ts = session.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            risk = session.risk_level.value
 
-            raw_summary = str(dev.get("violation_summary", "No details"))
-            safe_summary = html.escape(raw_summary)
-            violation = Paragraph(safe_summary, normal_style)
+            # Construct Violation Text (Type + Summary)
+            summary_parts = []
+            if session.violation_type:
+                summary_parts.append(f"<b>{html.escape(session.violation_type)}</b>")
 
-            rows.append([sess_id, ts, risk, violation])
+            if session.violation_summary:
+                summary_parts.append(html.escape(session.violation_summary))
+
+            if not summary_parts:
+                violation_text = "No details"
+            else:
+                violation_text = ": ".join(summary_parts) if len(summary_parts) > 1 else summary_parts[0]
+
+            violation_para = Paragraph(violation_text, normal_style)
+
+            rows.append([sess_id, ts, risk, violation_para])
+
+        return rows
+
+    def _build_config_changes_table_data(self, changes: List[Any]) -> List[List[Any]]:
+        """Constructs the Configuration Change Log table data rows."""
+        headers = ["Date", "User", "Field", "From", "To", "Reason", "Status"]
+        rows = [headers]
+
+        styles = getSampleStyleSheet()
+        normal_style = styles["Normal"]
+
+        for change in changes:
+            ts = change.timestamp.strftime("%Y-%m-%d")
+            user = html.escape(change.user_id)
+            field = html.escape(change.field_changed)
+
+            # Wrap possibly long values
+            old_val = Paragraph(html.escape(change.old_value), normal_style)
+            new_val = Paragraph(html.escape(change.new_value), normal_style)
+            reason = Paragraph(html.escape(change.reason), normal_style)
+
+            status = html.escape(change.status)
+
+            rows.append([ts, user, field, old_val, new_val, reason, status])
 
         return rows

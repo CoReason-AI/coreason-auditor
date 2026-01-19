@@ -1,3 +1,13 @@
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_auditor
+
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -10,6 +20,37 @@ class RequirementStatus(str, Enum):
     COVERED_PASSED = "COVERED_PASSED"
     COVERED_FAILED = "COVERED_FAILED"
     UNCOVERED = "UNCOVERED"
+
+
+class RiskLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class EventType(str, Enum):
+    INPUT = "INPUT"
+    THOUGHT = "THOUGHT"
+    TOOL = "TOOL"
+    OUTPUT = "OUTPUT"
+
+
+class SessionEvent(BaseModel):
+    timestamp: datetime = Field(..., description="Timestamp of the event")
+    event_type: EventType = Field(..., description="Type of the event")
+    content: str = Field(..., description="Content of the event")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+
+class Session(BaseModel):
+    session_id: str = Field(..., description="Unique Session Identifier")
+    user_id: Optional[str] = Field(default=None, description="User Identifier")
+    timestamp: datetime = Field(..., description="Start timestamp of the session")
+    risk_level: RiskLevel = Field(default=RiskLevel.LOW, description="Risk level of the session")
+    violation_summary: str = Field(..., description="Summary of the violation")
+    violation_type: Optional[str] = Field(default=None, description="Type/Category of the violation")
+    events: List[SessionEvent] = Field(default_factory=list, description="List of events in the session")
 
 
 class Requirement(BaseModel):
@@ -95,6 +136,22 @@ class AIBOMObject(BaseModel):
     cyclonedx_bom: Dict[str, Any] = Field(default_factory=dict, description="The full CycloneDX BOM structure")
 
 
+class ConfigChange(BaseModel):
+    """
+    Represents a change record in the configuration audit trail.
+    User Story C: The "Audit Trail Review".
+    """
+
+    change_id: str = Field(..., description="Unique identifier for the change event")
+    timestamp: datetime = Field(..., description="When the change occurred")
+    user_id: str = Field(..., description="User who performed the change")
+    field_changed: str = Field(..., description="The configuration key/field that was modified")
+    old_value: str = Field(..., description="Value before change")
+    new_value: str = Field(..., description="Value after change")
+    reason: str = Field(..., description="Justification for the change")
+    status: str = Field(..., description="Approval status (e.g., 'Signed & Approved')")
+
+
 class AuditPackage(BaseModel):
     id: UUID
     agent_version: str
@@ -104,7 +161,8 @@ class AuditPackage(BaseModel):
     # The Components
     bom: AIBOMObject  # The Ingredients
     rtm: TraceabilityMatrix  # The Tests
-    deviation_report: List[Dict[str, Any]]  # The Failures
+    deviation_report: List[Session]  # The Failures
+    config_changes: List[ConfigChange]  # Audit Trail
     human_interventions: int  # Count of HITL events
 
     # The Seal
