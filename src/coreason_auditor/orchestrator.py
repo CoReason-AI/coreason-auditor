@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
+from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.exceptions import ComplianceViolationError
 from coreason_auditor.models import (
     AgentConfig,
@@ -40,12 +41,14 @@ class AuditOrchestrator:
         session_replayer: SessionReplayer,
         signer: AuditSigner,
         pdf_generator: PDFReportGenerator,
+        csv_generator: CSVGenerator,
     ):
         self.aibom_generator = aibom_generator
         self.traceability_engine = traceability_engine
         self.session_replayer = session_replayer
         self.signer = signer
         self.pdf_generator = pdf_generator
+        self.csv_generator = csv_generator
 
     def generate_audit_package(
         self,
@@ -127,3 +130,9 @@ class AuditOrchestrator:
         Renders the audit package to a PDF file.
         """
         self.pdf_generator.generate_report(audit_package, output_path)
+
+    def export_to_csv(self, audit_package: AuditPackage, output_path: str) -> None:
+        """
+        Renders the configuration changes to a CSV file.
+        """
+        self.csv_generator.generate_config_change_log(audit_package.config_changes, output_path)
