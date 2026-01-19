@@ -10,6 +10,11 @@
 
 import uuid
 from datetime import datetime, timezone
+from typing import Optional, cast
+
+import anyio
+import httpx
+from anyio import to_thread
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.csv_generator import CSVGenerator
@@ -28,9 +33,9 @@ from coreason_auditor.traceability_engine import TraceabilityEngine
 from coreason_auditor.utils.logger import logger
 
 
-class AuditOrchestrator:
-    """
-    Coordinator for generating the full Audit Package.
+class AuditOrchestratorAsync:
+    """Coordinator for generating the full Audit Package.
+
     Integrates BOM, Traceability, Session Replay, Signing, and Export.
     """
 
@@ -42,6 +47,7 @@ class AuditOrchestrator:
         signer: AuditSigner,
         pdf_generator: PDFReportGenerator,
         csv_generator: CSVGenerator,
+        client: Optional[httpx.AsyncClient] = None,
     ):
         self.aibom_generator = aibom_generator
         self.traceability_engine = traceability_engine
@@ -49,8 +55,17 @@ class AuditOrchestrator:
         self.signer = signer
         self.pdf_generator = pdf_generator
         self.csv_generator = csv_generator
+        self._internal_client = client is None
+        self._client = client or httpx.AsyncClient()
 
-    def generate_audit_package(
+    async def __aenter__(self) -> "AuditOrchestratorAsync":
+        return self
+
+    async def __aexit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        if self._internal_client:
+            await self._client.aclose()
+
+    async def generate_audit_package(
         self,
         agent_config: AgentConfig,
         assay_report: AssayReport,
@@ -60,8 +75,7 @@ class AuditOrchestrator:
         risk_threshold: RiskLevel = RiskLevel.HIGH,
         max_deviations: int = 10,
     ) -> AuditPackage:
-        """
-        Orchestrates the creation of the Audit Package.
+        """Orchestrates the creation of the Audit Package.
 
         Args:
             agent_config: Requirements and coverage map.
@@ -74,14 +88,17 @@ class AuditOrchestrator:
 
         Returns:
             A signed AuditPackage object.
+
+        Raises:
+            ComplianceViolationError: If critical requirements are uncovered.
         """
         logger.info(f"Starting Audit Package generation for Agent v{agent_version} by {user_id}")
 
         # 1. Generate AI-BOM
-        bom = self.aibom_generator.generate_bom(bom_input)
+        bom = await to_thread.run_sync(self.aibom_generator.generate_bom, bom_input)
 
         # 2. Generate Traceability Matrix
-        rtm = self.traceability_engine.generate_matrix(agent_config, assay_report)
+        rtm = await to_thread.run_sync(self.traceability_engine.generate_matrix, agent_config, assay_report)
 
         # CRITICAL: Enforce coverage for critical requirements
         for req in rtm.requirements:
@@ -96,13 +113,17 @@ class AuditOrchestrator:
 
         # 3. Generate Deviation Report (Session Replay)
         # Note: SessionReplayer fetches sessions.
-        deviations = self.session_replayer.get_deviation_report(risk_level=risk_threshold, limit=max_deviations)
+        # Assuming SessionReplayer is still synchronous for now, wrapping in run_sync.
+        # If SessionReplayer was async, we would await it directly.
+        deviations = await to_thread.run_sync(
+            self.session_replayer.get_deviation_report, risk_threshold, max_deviations
+        )
 
         # 4. Fetch Intervention Count
-        interventions = self.session_replayer.get_intervention_count(agent_version)
+        interventions = await to_thread.run_sync(self.session_replayer.get_intervention_count, agent_version)
 
         # 5. Fetch Configuration Changes (Audit Trail)
-        config_changes = self.session_replayer.get_config_changes()
+        config_changes = await to_thread.run_sync(self.session_replayer.get_config_changes)
 
         # 6. Assemble Package
         package = AuditPackage(
@@ -120,19 +141,78 @@ class AuditOrchestrator:
         )
 
         # 5. Sign Package
-        signed_package = self.signer.sign_package(package, user_id)
+        signed_package = await to_thread.run_sync(self.signer.sign_package, package, user_id)
 
         logger.info(f"Audit Package {signed_package.id} generated and signed.")
-        return signed_package
+        return cast(AuditPackage, signed_package)
+
+    async def export_to_pdf(self, audit_package: AuditPackage, output_path: str) -> None:
+        """Renders the audit package to a PDF file."""
+        await to_thread.run_sync(self.pdf_generator.generate_report, audit_package, output_path)
+
+    async def export_to_csv(self, audit_package: AuditPackage, output_path: str) -> None:
+        """Renders the configuration changes to a CSV file."""
+        await to_thread.run_sync(
+            self.csv_generator.generate_config_change_log, audit_package.config_changes, output_path
+        )
+
+
+class AuditOrchestrator:
+    """Sync wrapper for AuditOrchestratorAsync."""
+
+    def __init__(
+        self,
+        aibom_generator: AIBOMGenerator,
+        traceability_engine: TraceabilityEngine,
+        session_replayer: SessionReplayer,
+        signer: AuditSigner,
+        pdf_generator: PDFReportGenerator,
+        csv_generator: CSVGenerator,
+        client: Optional[httpx.AsyncClient] = None,
+    ):
+        self._async = AuditOrchestratorAsync(
+            aibom_generator,
+            traceability_engine,
+            session_replayer,
+            signer,
+            pdf_generator,
+            csv_generator,
+            client,
+        )
+
+    def __enter__(self) -> "AuditOrchestrator":
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        anyio.run(self._async.__aexit__, exc_type, exc_val, exc_tb)
+
+    def generate_audit_package(
+        self,
+        agent_config: AgentConfig,
+        assay_report: AssayReport,
+        bom_input: BOMInput,
+        user_id: str,
+        agent_version: str,
+        risk_threshold: RiskLevel = RiskLevel.HIGH,
+        max_deviations: int = 10,
+    ) -> AuditPackage:
+        """Sync wrapper for generate_audit_package."""
+        result = anyio.run(
+            self._async.generate_audit_package,
+            agent_config,
+            assay_report,
+            bom_input,
+            user_id,
+            agent_version,
+            risk_threshold,
+            max_deviations,
+        )
+        return cast(AuditPackage, result)
 
     def export_to_pdf(self, audit_package: AuditPackage, output_path: str) -> None:
-        """
-        Renders the audit package to a PDF file.
-        """
-        self.pdf_generator.generate_report(audit_package, output_path)
+        """Sync wrapper for export_to_pdf."""
+        anyio.run(self._async.export_to_pdf, audit_package, output_path)
 
     def export_to_csv(self, audit_package: AuditPackage, output_path: str) -> None:
-        """
-        Renders the configuration changes to a CSV file.
-        """
-        self.csv_generator.generate_config_change_log(audit_package.config_changes, output_path)
+        """Sync wrapper for export_to_csv."""
+        anyio.run(self._async.export_to_csv, audit_package, output_path)

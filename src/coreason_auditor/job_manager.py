@@ -36,8 +36,8 @@ class ReportJob(BaseModel):
 
 
 class JobManager:
-    """
-    Manages asynchronous report generation jobs.
+    """Manages asynchronous report generation jobs.
+
     Uses a thread pool to execute tasks without blocking the main thread.
     """
 
@@ -46,8 +46,7 @@ class JobManager:
         self._jobs: Dict[str, ReportJob] = {}
 
     def submit_job(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
-        """
-        Submits a function for asynchronous execution.
+        """Submits a function for asynchronous execution.
 
         Args:
             func: The function to execute.
@@ -70,9 +69,7 @@ class JobManager:
         return self._jobs.get(job_id)
 
     def _worker_wrapper(self, job_id: str, func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
-        """
-        Internal wrapper to handle job status updates and error capturing.
-        """
+        """Internal wrapper to handle job status updates and error capturing."""
         job = self._jobs.get(job_id)
         if not job:
             return  # pragma: no cover

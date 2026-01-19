@@ -16,17 +16,17 @@ from coreason_auditor.utils.logger import logger
 
 
 class CSVGenerator:
-    """
-    Generates CSV exports for audit data.
-    """
+    """Generates CSV exports for audit data."""
 
     def generate_config_change_log(self, config_changes: List[ConfigChange], output_path: str) -> None:
-        """
-        Exports the configuration change log to a CSV file.
+        """Exports the configuration change log to a CSV file.
 
         Args:
-            config_changes: List of ConfigChange objects.
-            output_path: Destination file path.
+            config_changes: List of ConfigChange objects containing audit trail data.
+            output_path: Destination file path for the CSV export.
+
+        Raises:
+            IOError: If writing to the file fails.
         """
         logger.info(f"Generating Config Change CSV at {output_path}...")
 
