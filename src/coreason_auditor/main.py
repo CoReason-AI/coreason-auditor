@@ -19,6 +19,7 @@ from pydantic import ValidationError
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.config import settings
+from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.exceptions import ComplianceViolationError
 from coreason_auditor.mocks import MockAegisService, MockIdentityService, MockSessionSource
 from coreason_auditor.models import (
@@ -62,6 +63,7 @@ def main() -> None:
     # Output
     parser.add_argument("--output", required=True, type=Path, help="Path to output PDF file")
     parser.add_argument("--bom-output", required=False, type=Path, help="Path to output BOM JSON file")
+    parser.add_argument("--csv-output", required=False, type=Path, help="Path to output Config Change CSV file")
 
     # Meta
     parser.add_argument("--agent-version", required=True, type=str, help="Agent version string")
@@ -105,6 +107,7 @@ def main() -> None:
         session_replayer = SessionReplayer(session_source, aegis_service)
         signer = AuditSigner(identity_service)
         pdf_generator = PDFReportGenerator()
+        csv_generator = CSVGenerator()
 
         orchestrator = AuditOrchestrator(
             aibom_generator=aibom_generator,
@@ -112,6 +115,7 @@ def main() -> None:
             session_replayer=session_replayer,
             signer=signer,
             pdf_generator=pdf_generator,
+            csv_generator=csv_generator,
         )
 
         # 4. Execute Orchestration
@@ -139,6 +143,10 @@ def main() -> None:
             logger.info(f"Exporting BOM to {args.bom_output}")
             with open(args.bom_output, "w", encoding="utf-8") as f:
                 json.dump(package.bom.cyclonedx_bom, f, indent=2)
+
+        if args.csv_output:
+            logger.info(f"Exporting Config Change CSV to {args.csv_output}")
+            orchestrator.export_to_csv(package, str(args.csv_output))
 
         logger.info("Audit Package generation completed successfully.")
 

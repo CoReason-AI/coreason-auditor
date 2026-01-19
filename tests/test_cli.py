@@ -8,6 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_auditor
 
+import csv
 import json
 from pathlib import Path
 from typing import Any, Dict
@@ -58,6 +59,7 @@ def sample_inputs(tmp_path: Path) -> Dict[str, Path]:
         "bom": bom_path,
         "output": tmp_path / "report.pdf",
         "bom_output": tmp_path / "bom-out.json",
+        "csv_output": tmp_path / "changes.csv",
     }
 
 
@@ -124,6 +126,52 @@ def test_cli_bom_export(sample_inputs: Dict[str, Path], capsys: Any) -> None:
     assert "bomFormat" in bom_data
     assert "components" in bom_data
     assert bom_data["bomFormat"] == "CycloneDX"
+
+
+def test_cli_csv_export(sample_inputs: Dict[str, Path], capsys: Any) -> None:
+    """Test CLI execution with Config Change CSV export."""
+
+    args = [
+        "coreason-auditor",
+        "--agent-config",
+        str(sample_inputs["agent"]),
+        "--assay-report",
+        str(sample_inputs["assay"]),
+        "--bom-input",
+        str(sample_inputs["bom"]),
+        "--output",
+        str(sample_inputs["output"]),
+        "--csv-output",
+        str(sample_inputs["csv_output"]),
+        "--agent-version",
+        "1.0.0",
+    ]
+
+    with patch("sys.argv", args):
+        main()
+
+    # Verify CSV output created
+    assert sample_inputs["csv_output"].exists()
+
+    with open(sample_inputs["csv_output"], "r") as f:
+        rows = list(csv.reader(f))
+
+    # Check headers
+    assert rows[0] == [
+        "Change ID",
+        "Timestamp",
+        "User ID",
+        "Field Changed",
+        "Old Value",
+        "New Value",
+        "Reason",
+        "Status",
+    ]
+
+    # Note: MockSessionSource is populated with demo data by default in main.py
+    # So we expect some rows (from seeder.py)
+    # seeder.py adds 2 config changes.
+    assert len(rows) == 3  # Header + 2 rows
 
 
 def test_cli_validation_error(tmp_path: Path, capsys: Any) -> None:

@@ -11,6 +11,7 @@
 import unittest
 from unittest.mock import MagicMock
 
+from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.interfaces import SessionSource
 from coreason_auditor.mocks import MockAegisService, MockSessionSource
 from coreason_auditor.models import (
@@ -141,6 +142,7 @@ class TestSeeder(unittest.TestCase):
         mock_signer.sign_package.side_effect = lambda p, u: p  # Return package as is
 
         mock_pdf = MagicMock()
+        mock_csv = MagicMock(spec=CSVGenerator)
 
         orchestrator = AuditOrchestrator(
             aibom_generator=mock_aibom,
@@ -148,6 +150,7 @@ class TestSeeder(unittest.TestCase):
             session_replayer=replayer,
             signer=mock_signer,
             pdf_generator=mock_pdf,
+            csv_generator=mock_csv,
         )
 
         # 2. Execute
