@@ -15,9 +15,7 @@ from coreason_auditor.models import ConfigChange, RiskLevel, Session
 
 
 class MockSessionSource(SessionSource):
-    """
-    Mock implementation of SessionSource for testing and development.
-    """
+    """Mock implementation of SessionSource for testing and development."""
 
     def __init__(self, sessions: Optional[List[Session]] = None, intervention_count: int = 0):
         self._sessions = {s.session_id: s for s in sessions} if sessions else {}
@@ -48,8 +46,8 @@ class MockSessionSource(SessionSource):
 
 
 class MockAegisService(AegisService):
-    """
-    Mock implementation of AegisService.
+    """Mock implementation of AegisService.
+
     Simulates decryption by stripping a prefix "ENC:".
     """
 
@@ -62,8 +60,8 @@ class MockAegisService(AegisService):
 
 
 class MockIdentityService(IdentityService):
-    """
-    Mock implementation of IdentityService.
+    """Mock implementation of IdentityService.
+
     Returns a dummy signature.
     """
 

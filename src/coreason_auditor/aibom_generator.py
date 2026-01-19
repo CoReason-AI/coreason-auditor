@@ -21,19 +21,22 @@ from coreason_auditor.utils.logger import logger
 
 
 class AIBOMGenerator:
-    """
-    Generates AI-BOMs complying with CycloneDX standard.
+    """Generates AI-BOMs complying with CycloneDX standard.
+
+    This component creates the "Nutrition Label" for the Agent, including
+    Model Identity, Data Lineage, and Software Dependencies.
     """
 
     def generate_bom(self, input_data: BOMInput) -> AIBOMObject:
-        """
-        Generates an AIBOMObject from the given BOMInput.
+        """Generates an AIBOMObject from the given BOMInput.
 
         Args:
-            input_data: The input data including model details, data lineage, and dependencies.
+            input_data: The input data including model details, data lineage,
+                and dependencies.
 
         Returns:
-            A populated AIBOMObject containing the CycloneDX BOM.
+            A populated AIBOMObject containing the CycloneDX BOM in JSON format
+            and metadata.
         """
         logger.info(f"Generating AI-BOM for model {input_data.model_name}...")
 

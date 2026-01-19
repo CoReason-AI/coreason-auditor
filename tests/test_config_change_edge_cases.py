@@ -197,7 +197,7 @@ class TestConfigChangePDFEdgeCases:
         # Verify first item
         assert "user-0" in full_text
         # Verify last item
-        assert f"user-{count-1}" in full_text
+        assert f"user-{count - 1}" in full_text
 
     def test_content_safety_injection(self, tmp_path: Any, base_package: AuditPackage) -> None:
         """
