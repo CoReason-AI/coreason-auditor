@@ -13,6 +13,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
+from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.exceptions import ComplianceViolationError
 from coreason_auditor.models import (
     AgentConfig,
@@ -42,6 +43,7 @@ class TestAuditOrchestrator(unittest.TestCase):
         self.mock_replayer = MagicMock(spec=SessionReplayer)
         self.mock_signer = MagicMock(spec=AuditSigner)
         self.mock_pdf_gen = MagicMock(spec=PDFReportGenerator)
+        self.mock_csv_gen = MagicMock(spec=CSVGenerator)
 
         self.orchestrator = AuditOrchestrator(
             self.mock_bom_gen,
@@ -49,6 +51,7 @@ class TestAuditOrchestrator(unittest.TestCase):
             self.mock_replayer,
             self.mock_signer,
             self.mock_pdf_gen,
+            self.mock_csv_gen,
         )
 
         # Common Test Data
@@ -123,6 +126,14 @@ class TestAuditOrchestrator(unittest.TestCase):
         path = "out.pdf"
         self.orchestrator.export_to_pdf(pkg, path)
         self.mock_pdf_gen.generate_report.assert_called_once_with(pkg, path)
+
+    def test_export_to_csv(self) -> None:
+        """Test CSV export delegation."""
+        pkg = MagicMock(spec=AuditPackage)
+        pkg.config_changes = ["change1", "change2"]
+        path = "out.csv"
+        self.orchestrator.export_to_csv(pkg, path)
+        self.mock_csv_gen.generate_config_change_log.assert_called_once_with(["change1", "change2"], path)
 
     def test_critical_uncovered_failure(self) -> None:
         """Test that uncovered critical requirements raise an exception."""

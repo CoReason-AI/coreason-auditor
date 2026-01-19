@@ -12,6 +12,7 @@ from unittest.mock import Mock
 
 import pytest
 from coreason_auditor.aibom_generator import AIBOMGenerator
+from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.mocks import MockAegisService, MockIdentityService, MockSessionSource
 from coreason_auditor.models import (
     AgentConfig,
@@ -45,6 +46,7 @@ def test_intervention_count_integration() -> None:
     aibom_generator = Mock(spec=AIBOMGenerator)
     traceability_engine = Mock(spec=TraceabilityEngine)
     pdf_generator = Mock(spec=PDFReportGenerator)
+    csv_generator = Mock(spec=CSVGenerator)
     signer = AuditSigner(identity_service)
 
     # Configure Mocks to return valid data to pass Pydantic validation
@@ -62,6 +64,7 @@ def test_intervention_count_integration() -> None:
         session_replayer=session_replayer,
         signer=signer,
         pdf_generator=pdf_generator,
+        csv_generator=csv_generator,
     )
 
     # Inputs
@@ -109,6 +112,7 @@ def test_intervention_count_source_failure() -> None:
     )
 
     pdf_generator = Mock(spec=PDFReportGenerator)
+    csv_generator = Mock(spec=CSVGenerator)
     signer = AuditSigner(identity_service)
 
     orchestrator = AuditOrchestrator(
@@ -117,6 +121,7 @@ def test_intervention_count_source_failure() -> None:
         session_replayer=session_replayer,
         signer=signer,
         pdf_generator=pdf_generator,
+        csv_generator=csv_generator,
     )
 
     # Execute
@@ -157,6 +162,7 @@ def test_intervention_count_large_number() -> None:
         session_replayer=session_replayer,
         signer=signer,
         pdf_generator=Mock(spec=PDFReportGenerator),
+        csv_generator=Mock(spec=CSVGenerator),
     )
 
     package = orchestrator.generate_audit_package(
