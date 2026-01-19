@@ -11,7 +11,9 @@
 import csv
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
+import pytest
 from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.models import ConfigChange
 
@@ -99,3 +101,16 @@ def test_generate_empty_log(tmp_path: Path) -> None:
 
     assert len(rows) == 1
     assert rows[0][0] == "Change ID"
+
+
+def test_generate_config_change_log_io_error(tmp_path: Path) -> None:
+    """
+    Test that IOError during CSV generation is caught, logged, and re-raised.
+    """
+    generator = CSVGenerator()
+    output_path = tmp_path / "error.csv"
+
+    # Simulate IOError when opening the file
+    with patch("builtins.open", side_effect=IOError("Disk full")):
+        with pytest.raises(IOError, match="Disk full"):
+            generator.generate_config_change_log([], str(output_path))
