@@ -66,18 +66,14 @@ class ComplianceTest(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    """
-    Represents the input configuration (agent.yaml).
-    """
+    """Represents the input configuration (agent.yaml)."""
 
     requirements: List[Requirement] = Field(..., description="List of requirements")
     coverage_map: Dict[str, List[str]] = Field(..., description="Map of Req ID to list of Test IDs")
 
 
 class AssayReport(BaseModel):
-    """
-    Represents the input test results (assay_report.json).
-    """
+    """Represents the input test results (assay_report.json)."""
 
     results: List[ComplianceTest] = Field(..., description="List of test results")
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -110,8 +106,8 @@ class TraceabilityMatrix(BaseModel):
 
 
 class BOMInput(BaseModel):
-    """
-    Formalized input for AI-BOM generation.
+    """Formalized input for AI-BOM generation.
+
     Decouples the generator from specific data sources.
     """
 
@@ -124,8 +120,8 @@ class BOMInput(BaseModel):
 
 
 class AIBOMObject(BaseModel):
-    """
-    Represents the AI-BOM ingredients list.
+    """Represents the AI-BOM ingredients list.
+
     Corresponds to functionality in Section 3.2.
     """
 
@@ -137,8 +133,8 @@ class AIBOMObject(BaseModel):
 
 
 class ConfigChange(BaseModel):
-    """
-    Represents a change record in the configuration audit trail.
+    """Represents a change record in the configuration audit trail.
+
     User Story C: The "Audit Trail Review".
     """
 

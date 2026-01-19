@@ -21,13 +21,10 @@ from coreason_auditor.utils.logger import logger
 
 
 class TraceabilityEngine:
-    """
-    Core engine for mapping requirements to test results and generating the Traceability Matrix.
-    """
+    """Core engine for mapping requirements to test results and generating the Traceability Matrix."""
 
     def generate_matrix(self, agent_config: AgentConfig, assay_report: AssayReport) -> TraceabilityMatrix:
-        """
-        Generates a TraceabilityMatrix from the given AgentConfig and AssayReport.
+        """Generates a TraceabilityMatrix from the given AgentConfig and AssayReport.
 
         Args:
             agent_config: The configuration containing requirements and the coverage map.

@@ -50,9 +50,7 @@ def load_json(path: Path) -> Dict[str, Any]:
 
 
 def main() -> None:
-    """
-    CLI Entry Point for CoReason Auditor.
-    """
+    """CLI Entry Point for CoReason Auditor."""
     parser = argparse.ArgumentParser(description="CoReason Auditor - Compliance Reporting Engine")
 
     # Inputs

@@ -12,8 +12,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """
-    Application configuration via environment variables.
+    """Application configuration via environment variables.
+
+    Loads configuration from environment variables and .env files using pydantic-settings.
     """
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
