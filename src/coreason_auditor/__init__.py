@@ -17,5 +17,6 @@ __author__ = "Gowtham A Rao"
 __email__ = "gowtham.rao@coreason.ai"
 
 from .main import main
+from .orchestrator import AuditOrchestrator, AuditOrchestratorAsync
 
-__all__ = ["main"]
+__all__ = ["main", "AuditOrchestrator", "AuditOrchestratorAsync"]
