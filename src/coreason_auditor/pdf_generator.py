@@ -46,13 +46,10 @@ class HorizontalLine(Flowable):  # type: ignore[misc]
 
 
 class PDFReportGenerator:
-    """
-    Generates the CoReason Audit Package PDF report.
-    """
+    """Generates the CoReason Audit Package PDF report."""
 
     def generate_report(self, audit_package: AuditPackage, output_path: str) -> None:
-        """
-        Generates a PDF report from the AuditPackage.
+        """Generates a PDF report from the AuditPackage.
 
         Args:
             audit_package: The data to report.

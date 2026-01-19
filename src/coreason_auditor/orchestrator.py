@@ -29,8 +29,8 @@ from coreason_auditor.utils.logger import logger
 
 
 class AuditOrchestrator:
-    """
-    Coordinator for generating the full Audit Package.
+    """Coordinator for generating the full Audit Package.
+
     Integrates BOM, Traceability, Session Replay, Signing, and Export.
     """
 
@@ -60,8 +60,7 @@ class AuditOrchestrator:
         risk_threshold: RiskLevel = RiskLevel.HIGH,
         max_deviations: int = 10,
     ) -> AuditPackage:
-        """
-        Orchestrates the creation of the Audit Package.
+        """Orchestrates the creation of the Audit Package.
 
         Args:
             agent_config: Requirements and coverage map.
@@ -74,6 +73,9 @@ class AuditOrchestrator:
 
         Returns:
             A signed AuditPackage object.
+
+        Raises:
+            ComplianceViolationError: If critical requirements are uncovered.
         """
         logger.info(f"Starting Audit Package generation for Agent v{agent_version} by {user_id}")
 
@@ -126,13 +128,9 @@ class AuditOrchestrator:
         return signed_package
 
     def export_to_pdf(self, audit_package: AuditPackage, output_path: str) -> None:
-        """
-        Renders the audit package to a PDF file.
-        """
+        """Renders the audit package to a PDF file."""
         self.pdf_generator.generate_report(audit_package, output_path)
 
     def export_to_csv(self, audit_package: AuditPackage, output_path: str) -> None:
-        """
-        Renders the configuration changes to a CSV file.
-        """
+        """Renders the configuration changes to a CSV file."""
         self.csv_generator.generate_config_change_log(audit_package.config_changes, output_path)

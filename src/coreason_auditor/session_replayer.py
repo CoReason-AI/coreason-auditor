@@ -16,13 +16,14 @@ from coreason_auditor.utils.logger import logger
 
 
 class SessionReplayer:
-    """
-    Reconstructs user sessions for human review and audit reporting.
-    Handles data retrieval and PII decryption.
+    """Reconstructs user sessions for human review and audit reporting.
+
+    Handles data retrieval and PII decryption using the SessionSource and AegisService.
     """
 
     def __init__(self, session_source: SessionSource, aegis_service: AegisService):
-        """
+        """Initializes the SessionReplayer.
+
         Args:
             session_source: The source to fetch session data from.
             aegis_service: The service to decrypt sensitive data.
@@ -31,8 +32,7 @@ class SessionReplayer:
         self.aegis = aegis_service
 
     def reconstruct_session(self, session_id: str) -> Optional[Session]:
-        """
-        Retrieves, sorts, and decrypts a full session.
+        """Retrieves, sorts, and decrypts a full session.
 
         Args:
             session_id: The ID of the session to reconstruct.
@@ -53,8 +53,7 @@ class SessionReplayer:
         return session
 
     def get_deviation_report(self, risk_level: RiskLevel = RiskLevel.HIGH, limit: int = 10) -> List[Session]:
-        """
-        Retrieves a list of sessions matching the risk criteria for the deviation report.
+        """Retrieves a list of sessions matching the risk criteria for the deviation report.
 
         Args:
             risk_level: The minimum risk level to include.
@@ -78,15 +77,25 @@ class SessionReplayer:
         return processed_sessions
 
     def get_intervention_count(self, agent_version: str) -> int:
-        """
-        Retrieves the total count of human interventions for the given agent version.
+        """Retrieves the total count of human interventions for the given agent version.
+
+        Args:
+            agent_version: The version string of the agent.
+
+        Returns:
+            The count of interventions.
         """
         logger.info(f"Fetching intervention count for agent version {agent_version}...")
         return self.source.get_intervention_count(agent_version)
 
     def get_config_changes(self, limit: int = 100) -> List[ConfigChange]:
-        """
-        Retrieves the configuration change log.
+        """Retrieves the configuration change log.
+
+        Args:
+            limit: Maximum number of records to return.
+
+        Returns:
+            A list of ConfigChange objects.
         """
         logger.info(f"Fetching configuration changes (limit={limit})...")
         return self.source.get_config_changes(limit)
