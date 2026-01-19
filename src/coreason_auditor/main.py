@@ -107,15 +107,6 @@ def main() -> None:
         pdf_generator = PDFReportGenerator()
         csv_generator = CSVGenerator()
 
-        orchestrator = AuditOrchestrator(
-            aibom_generator=aibom_generator,
-            traceability_engine=traceability_engine,
-            session_replayer=session_replayer,
-            signer=signer,
-            pdf_generator=pdf_generator,
-            csv_generator=csv_generator,
-        )
-
         # 4. Execute Orchestration
         try:
             risk_enum = RiskLevel(args.risk_threshold)
@@ -123,28 +114,36 @@ def main() -> None:
             logger.error(f"Invalid risk threshold: {args.risk_threshold}")
             sys.exit(1)
 
-        package = orchestrator.generate_audit_package(
-            agent_config=agent_config,
-            assay_report=assay_report,
-            bom_input=bom_input,
-            user_id=args.user_id,
-            agent_version=args.agent_version,
-            risk_threshold=risk_enum,
-            max_deviations=settings.MAX_DEVIATIONS,
-        )
+        with AuditOrchestrator(
+            aibom_generator=aibom_generator,
+            traceability_engine=traceability_engine,
+            session_replayer=session_replayer,
+            signer=signer,
+            pdf_generator=pdf_generator,
+            csv_generator=csv_generator,
+        ) as orchestrator:
+            package = orchestrator.generate_audit_package(
+                agent_config=agent_config,
+                assay_report=assay_report,
+                bom_input=bom_input,
+                user_id=args.user_id,
+                agent_version=args.agent_version,
+                risk_threshold=risk_enum,
+                max_deviations=settings.MAX_DEVIATIONS,
+            )
 
-        # 5. Export
-        logger.info(f"Exporting report to {args.output}")
-        orchestrator.export_to_pdf(package, str(args.output))
+            # 5. Export
+            logger.info(f"Exporting report to {args.output}")
+            orchestrator.export_to_pdf(package, str(args.output))
 
-        if args.bom_output:
-            logger.info(f"Exporting BOM to {args.bom_output}")
-            with open(args.bom_output, "w", encoding="utf-8") as f:
-                json.dump(package.bom.cyclonedx_bom, f, indent=2)
+            if args.bom_output:
+                logger.info(f"Exporting BOM to {args.bom_output}")
+                with open(args.bom_output, "w", encoding="utf-8") as f:
+                    json.dump(package.bom.cyclonedx_bom, f, indent=2)
 
-        if args.csv_output:
-            logger.info(f"Exporting Config Change CSV to {args.csv_output}")
-            orchestrator.export_to_csv(package, str(args.csv_output))
+            if args.csv_output:
+                logger.info(f"Exporting Config Change CSV to {args.csv_output}")
+                orchestrator.export_to_csv(package, str(args.csv_output))
 
         logger.info("Audit Package generation completed successfully.")
 

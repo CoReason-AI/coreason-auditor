@@ -348,6 +348,8 @@ def test_cli_env_var_override(sample_inputs: Dict[str, Path], capsys: Any) -> No
         # Mock the Orchestrator to verify it receives the correct risk threshold
         with patch("coreason_auditor.main.AuditOrchestrator") as MockOrch:
             instance = MockOrch.return_value
+            # Ensure __enter__ returns self so context manager works
+            instance.__enter__.return_value = instance
             # return a dummy package to avoid crash later
             instance.generate_audit_package.return_value = MagicMock()
 
@@ -404,6 +406,8 @@ def test_complex_scenario_cli(sample_inputs: Dict[str, Path], capsys: Any) -> No
 
     with patch("coreason_auditor.main.AuditOrchestrator") as MockOrch:
         instance = MockOrch.return_value
+        # Ensure __enter__ returns self
+        instance.__enter__.return_value = instance
         instance.generate_audit_package.return_value = MagicMock()
 
         with patch("sys.argv", args):
