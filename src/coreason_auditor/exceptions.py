@@ -8,8 +8,8 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_auditor
 
-from coreason_auditor.main import hello_world
 
+class ComplianceViolationError(Exception):
+    """Raised when a compliance check fails, such as an uncovered critical requirement."""
 
-def test_hello_world() -> None:
-    assert hello_world() == "Hello World!"
+    pass

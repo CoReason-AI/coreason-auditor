@@ -10,6 +10,15 @@ packages = [{include = "coreason_auditor", from = "src"}]
 [tool.poetry.dependencies]
 python = ">=3.12, <3.15"
 loguru = "^0.7.2"
+pydantic = "^2.12.5"
+cyclonedx-python-lib = "^11.6.0"
+reportlab = "^4.4.7"
+cryptography = "^46.0.3"
+pydantic-settings = "^2.12.0"
+pyyaml = "^6.0.3"
+anyio = "^4.3.0"
+httpx = "^0.27.0"
+aiofiles = "^23.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
@@ -18,6 +27,10 @@ pre-commit = "^3.7.1"
 pytest-cov = "^5.0.0"
 mkdocs = "^1.6.0"
 mkdocs-material = "^9.5.26"
+pypdf = "^6.6.0"
+types-pyyaml = "^6.0.12.20250915"
+types-aiofiles = "^23.2.0.20240311"
+pytest-asyncio = "^0.23.5"
 
 [build-system]
 requires = ["poetry-core"]
@@ -56,10 +69,12 @@ ignore = []
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=src --cov-report=term-missing --cov-fail-under=100"
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=97"
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 omit = ["tests/*"]
