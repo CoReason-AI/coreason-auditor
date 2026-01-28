@@ -17,7 +17,7 @@ cryptography = "^46.0.3"
 pydantic-settings = "^2.12.0"
 pyyaml = "^6.0.3"
 anyio = "^4.12.1"
-httpx = "^0.27.0"
+httpx = "^0.28.1"
 aiofiles = "^23.2.1"
 coreason-identity = "^0.1.0"
 
