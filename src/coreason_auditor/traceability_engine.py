@@ -11,6 +11,7 @@
 from typing import Dict, List, Set
 
 from coreason_identity.models import UserContext
+
 from coreason_auditor.models import (
     AgentConfig,
     AssayReport,

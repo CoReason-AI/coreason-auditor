@@ -11,12 +11,12 @@
 import json
 from datetime import datetime, timezone
 
+from coreason_identity.models import UserContext
 from cyclonedx.model import Property
 from cyclonedx.model.bom import Bom, BomMetaData
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.output.json import JsonV1Dot6
 
-from coreason_identity.models import UserContext
 from coreason_auditor.models import AIBOMObject, BOMInput
 from coreason_auditor.utils.logger import logger
 

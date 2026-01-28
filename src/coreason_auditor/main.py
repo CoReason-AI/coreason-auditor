@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Any, Dict
 
 import yaml
-from pydantic import ValidationError
-
 from coreason_identity.models import UserContext
 from coreason_identity.types import SecretStr
+from pydantic import ValidationError
+
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.config import settings
 from coreason_auditor.csv_generator import CSVGenerator
@@ -116,9 +116,7 @@ def main() -> None:
             logger.error(f"Invalid risk threshold: {args.risk_threshold}")
             sys.exit(1)
 
-        system_context = UserContext(
-            user_id=SecretStr("cli-user"), roles=["system"], metadata={"source": "cli"}
-        )
+        system_context = UserContext(user_id=SecretStr("cli-user"), roles=["system"], metadata={"source": "cli"})
 
         with AuditOrchestrator(
             aibom_generator=aibom_generator,

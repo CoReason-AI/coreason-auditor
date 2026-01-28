@@ -15,8 +15,8 @@ from typing import Optional, cast
 import anyio
 import httpx
 from anyio import to_thread
-
 from coreason_identity.models import UserContext
+
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.exceptions import ComplianceViolationError
@@ -107,9 +107,7 @@ class AuditOrchestratorAsync:
         bom = await to_thread.run_sync(self.aibom_generator.generate_bom, context, bom_input)
 
         # 2. Generate Traceability Matrix
-        rtm = await to_thread.run_sync(
-            self.traceability_engine.generate_matrix, context, agent_config, assay_report
-        )
+        rtm = await to_thread.run_sync(self.traceability_engine.generate_matrix, context, agent_config, assay_report)
 
         # CRITICAL: Enforce coverage for critical requirements
         for req in rtm.requirements:

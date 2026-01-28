@@ -9,11 +9,10 @@
 # Source Code: https://github.com/CoReason-AI/coreason_auditor
 
 import pytest
-
-from coreason_identity.models import UserContext
-from coreason_identity.types import SecretStr
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.models import AIBOMObject, BOMInput, Requirement
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
 
 
 class TestAIBOMGenerator:

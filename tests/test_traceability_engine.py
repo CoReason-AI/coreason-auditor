@@ -10,9 +10,6 @@
 
 from typing import Dict, Generator, List
 
-from coreason_identity.models import UserContext
-from coreason_identity.types import SecretStr
-
 import pytest
 from coreason_auditor.models import (
     AgentConfig,
@@ -23,6 +20,8 @@ from coreason_auditor.models import (
     TraceabilityMatrix,
 )
 from coreason_auditor.traceability_engine import TraceabilityEngine
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
 
 
 @pytest.fixture  # type: ignore[misc]
