@@ -10,6 +10,9 @@
 
 from unittest.mock import Mock
 
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
+
 import pytest
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.csv_generator import CSVGenerator
@@ -73,7 +76,9 @@ def test_intervention_count_integration() -> None:
     bom_input = Mock(spec=BOMInput)
 
     # Execute
+    context = UserContext(user_id=SecretStr("test-user"), roles=[])
     package = orchestrator.generate_audit_package(
+        context=context,
         agent_config=agent_config,
         assay_report=assay_report,
         bom_input=bom_input,
@@ -125,8 +130,10 @@ def test_intervention_count_source_failure() -> None:
     )
 
     # Execute
+    context = UserContext(user_id=SecretStr("test-user"), roles=[])
     with pytest.raises(Exception, match="DB Connection Failed"):
         orchestrator.generate_audit_package(
+            context=context,
             agent_config=Mock(spec=AgentConfig),
             assay_report=Mock(spec=AssayReport),
             bom_input=Mock(spec=BOMInput),
@@ -165,7 +172,9 @@ def test_intervention_count_large_number() -> None:
         csv_generator=Mock(spec=CSVGenerator),
     )
 
+    context = UserContext(user_id=SecretStr("test-user"), roles=[])
     package = orchestrator.generate_audit_package(
+        context=context,
         agent_config=Mock(spec=AgentConfig),
         assay_report=Mock(spec=AssayReport),
         bom_input=Mock(spec=BOMInput),

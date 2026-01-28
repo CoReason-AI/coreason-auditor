@@ -16,6 +16,7 @@ from cyclonedx.model.bom import Bom, BomMetaData
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.output.json import JsonV1Dot6
 
+from coreason_identity.models import UserContext
 from coreason_auditor.models import AIBOMObject, BOMInput
 from coreason_auditor.utils.logger import logger
 
@@ -27,10 +28,11 @@ class AIBOMGenerator:
     Model Identity, Data Lineage, and Software Dependencies.
     """
 
-    def generate_bom(self, input_data: BOMInput) -> AIBOMObject:
+    def generate_bom(self, context: UserContext, input_data: BOMInput) -> AIBOMObject:
         """Generates an AIBOMObject from the given BOMInput.
 
         Args:
+            context: The user context requesting the BOM.
             input_data: The input data including model details, data lineage,
                 and dependencies.
 
@@ -38,7 +40,13 @@ class AIBOMGenerator:
             A populated AIBOMObject containing the CycloneDX BOM in JSON format
             and metadata.
         """
-        logger.info(f"Generating AI-BOM for model {input_data.model_name}...")
+        if context is None:
+            raise ValueError("UserContext is required")
+
+        logger.info(
+            f"Generating AI-BOM for model {input_data.model_name}",
+            user_id=context.user_id.get_secret_value(),
+        )
 
         # Initialize CycloneDX BOM
         bom = Bom()

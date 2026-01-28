@@ -9,11 +9,18 @@
 # Source Code: https://github.com/CoReason-AI/coreason_auditor
 
 import pytest
+
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.models import AIBOMObject, BOMInput, Requirement
 
 
 class TestAIBOMGenerator:
+    @pytest.fixture  # type: ignore
+    def mock_context(self) -> UserContext:
+        return UserContext(user_id=SecretStr("test-user"), roles=[])
+
     @pytest.fixture  # type: ignore
     def bom_input(self) -> BOMInput:
         return BOMInput(
@@ -48,10 +55,10 @@ class TestAIBOMGenerator:
                 # software_dependencies missing
             )  # type: ignore
 
-    def test_generate_bom_structure(self, bom_input: BOMInput) -> None:
+    def test_generate_bom_structure(self, bom_input: BOMInput, mock_context: UserContext) -> None:
         """Test that generate_bom produces a valid AIBOMObject with correct structure."""
         generator = AIBOMGenerator()
-        result = generator.generate_bom(bom_input)
+        result = generator.generate_bom(mock_context, bom_input)
 
         assert isinstance(result, AIBOMObject)
         assert result.model_identity == "meta-llama-3@sha256:abc123def456 + adapter@sha256:789ghi012jkl"
@@ -80,10 +87,10 @@ class TestAIBOMGenerator:
         adapter_prop = next((p["value"] for p in properties if p["name"] == "coreason:adapter_sha"), None)
         assert adapter_prop == "sha256:789ghi012jkl"
 
-    def test_generate_bom_components(self, bom_input: BOMInput) -> None:
+    def test_generate_bom_components(self, bom_input: BOMInput, mock_context: UserContext) -> None:
         """Test that data lineage and dependencies are added as components."""
         generator = AIBOMGenerator()
-        result = generator.generate_bom(bom_input)
+        result = generator.generate_bom(mock_context, bom_input)
         bom_dict = result.cyclonedx_bom
         components = bom_dict.get("components", [])
 
@@ -107,7 +114,7 @@ class TestAIBOMGenerator:
         req_non_critical = Requirement(req_id="1.2", desc="Optional", critical=False)
         assert req_non_critical.critical is False
 
-    def test_edge_case_dependency_parsing(self) -> None:
+    def test_edge_case_dependency_parsing(self, mock_context: UserContext) -> None:
         """Test fallback behavior for weird dependency strings."""
         input_data = BOMInput(
             model_name="test-parsing",
@@ -122,7 +129,7 @@ class TestAIBOMGenerator:
             ],
         )
         generator = AIBOMGenerator()
-        result = generator.generate_bom(input_data)
+        result = generator.generate_bom(mock_context, input_data)
         components = result.cyclonedx_bom.get("components", [])
         lib_comps = {c["name"]: c["version"] for c in components if c["type"] == "library"}
 
@@ -138,7 +145,7 @@ class TestAIBOMGenerator:
         # "weird-pkg==1.0==build" -> name="weird-pkg", version="1.0==build" (split on first '==')
         assert lib_comps["weird-pkg"] == "1.0==build"
 
-    def test_unversioned_dependency_coverage(self) -> None:
+    def test_unversioned_dependency_coverage(self, mock_context: UserContext) -> None:
         """Explicitly test dependency with no version to guarantee 'else' block coverage."""
         input_data = BOMInput(
             model_name="coverage-check",
@@ -148,7 +155,7 @@ class TestAIBOMGenerator:
             software_dependencies=["just-a-name"],
         )
         generator = AIBOMGenerator()
-        result = generator.generate_bom(input_data)
+        result = generator.generate_bom(mock_context, input_data)
         components = result.cyclonedx_bom.get("components", [])
         lib_comp = next((c for c in components if c["name"] == "just-a-name"), None)
 
@@ -156,7 +163,7 @@ class TestAIBOMGenerator:
         assert lib_comp["version"] == "unknown"
         assert lib_comp["type"] == "library"
 
-    def test_edge_case_optional_adapter(self) -> None:
+    def test_edge_case_optional_adapter(self, mock_context: UserContext) -> None:
         """Test that optional adapter_sha is handled correctly (not added to properties)."""
         input_data = BOMInput(
             model_name="no-adapter-model",
@@ -167,7 +174,7 @@ class TestAIBOMGenerator:
             software_dependencies=[],
         )
         generator = AIBOMGenerator()
-        result = generator.generate_bom(input_data)
+        result = generator.generate_bom(mock_context, input_data)
 
         # Check Model Identity String
         assert result.model_identity == "no-adapter-model@sha256:222"
@@ -179,7 +186,7 @@ class TestAIBOMGenerator:
         adapter_prop = next((p for p in properties if p["name"] == "coreason:adapter_sha"), None)
         assert adapter_prop is None
 
-    def test_edge_case_raw_hash(self) -> None:
+    def test_edge_case_raw_hash(self, mock_context: UserContext) -> None:
         """Test that model_sha without 'sha256:' prefix is handled."""
         raw_hash = "a" * 64
         input_data = BOMInput(
@@ -190,7 +197,7 @@ class TestAIBOMGenerator:
             software_dependencies=[],
         )
         generator = AIBOMGenerator()
-        result = generator.generate_bom(input_data)
+        result = generator.generate_bom(mock_context, input_data)
 
         main_component = result.cyclonedx_bom["metadata"]["component"]
         hashes = main_component.get("hashes", [])
@@ -198,7 +205,7 @@ class TestAIBOMGenerator:
 
         assert sha256_hash == raw_hash
 
-    def test_complex_scenario_large_bom(self) -> None:
+    def test_complex_scenario_large_bom(self, mock_context: UserContext) -> None:
         """Test generating a BOM with a large number of components."""
         num_deps = 1000
         num_jobs = 100
@@ -214,7 +221,7 @@ class TestAIBOMGenerator:
         )
 
         generator = AIBOMGenerator()
-        result = generator.generate_bom(input_data)
+        result = generator.generate_bom(mock_context, input_data)
 
         components = result.cyclonedx_bom.get("components", [])
 

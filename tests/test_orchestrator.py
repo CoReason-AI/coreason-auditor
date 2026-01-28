@@ -12,6 +12,9 @@ from datetime import datetime
 from typing import Any, Dict
 from unittest.mock import MagicMock
 
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
+
 import pytest
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.csv_generator import CSVGenerator
@@ -46,6 +49,11 @@ def mock_dependencies() -> Dict[str, MagicMock]:
         "pdf_gen": MagicMock(spec=PDFReportGenerator),
         "csv_gen": MagicMock(spec=CSVGenerator),
     }
+
+
+@pytest.fixture  # type: ignore[misc]
+def mock_context() -> UserContext:
+    return UserContext(user_id=SecretStr("test-user"), roles=[])
 
 
 @pytest.fixture  # type: ignore[misc]
@@ -102,7 +110,10 @@ def setup_mocks(mock_dependencies: Dict[str, MagicMock], test_data: Dict[str, An
 
 @pytest.mark.asyncio  # type: ignore[misc]
 async def test_generate_audit_package_async(
-    mock_dependencies: Dict[str, MagicMock], test_data: Dict[str, Any], setup_mocks: None
+    mock_dependencies: Dict[str, MagicMock],
+    test_data: Dict[str, Any],
+    setup_mocks: None,
+    mock_context: UserContext,
 ) -> None:
     """Test the full flow of generating a package using Async Service."""
     async with AuditOrchestratorAsync(
@@ -114,6 +125,7 @@ async def test_generate_audit_package_async(
         mock_dependencies["csv_gen"],
     ) as orchestrator:
         package = await orchestrator.generate_audit_package(
+            mock_context,
             test_data["agent_config"],
             test_data["assay_report"],
             test_data["bom_input"],
@@ -122,7 +134,7 @@ async def test_generate_audit_package_async(
         )
 
         # Verify calls
-        mock_dependencies["bom_gen"].generate_bom.assert_called_once_with(test_data["bom_input"])
+        mock_dependencies["bom_gen"].generate_bom.assert_called_once_with(mock_context, test_data["bom_input"])
         mock_dependencies["rtm_engine"].generate_matrix.assert_called_once()
         mock_dependencies["replayer"].get_deviation_report.assert_called_once()
         mock_dependencies["signer"].sign_package.assert_called_once()
@@ -133,7 +145,10 @@ async def test_generate_audit_package_async(
 
 
 def test_generate_audit_package_sync(
-    mock_dependencies: Dict[str, MagicMock], test_data: Dict[str, Any], setup_mocks: None
+    mock_dependencies: Dict[str, MagicMock],
+    test_data: Dict[str, Any],
+    setup_mocks: None,
+    mock_context: UserContext,
 ) -> None:
     """Test the full flow of generating a package using Sync Facade."""
     with AuditOrchestrator(
@@ -145,6 +160,7 @@ def test_generate_audit_package_sync(
         mock_dependencies["csv_gen"],
     ) as orchestrator:
         package = orchestrator.generate_audit_package(
+            mock_context,
             test_data["agent_config"],
             test_data["assay_report"],
             test_data["bom_input"],
@@ -191,7 +207,7 @@ def test_export_to_csv_sync(mock_dependencies: Dict[str, MagicMock]) -> None:
 
 @pytest.mark.asyncio  # type: ignore[misc]
 async def test_critical_uncovered_failure_async(
-    mock_dependencies: Dict[str, MagicMock], test_data: Dict[str, Any]
+    mock_dependencies: Dict[str, MagicMock], test_data: Dict[str, Any], mock_context: UserContext
 ) -> None:
     """Test that uncovered critical requirements raise an exception (Async)."""
     # Setup: Critical Req with NO coverage
@@ -213,6 +229,7 @@ async def test_critical_uncovered_failure_async(
     ) as orchestrator:
         with pytest.raises(ComplianceViolationError):
             await orchestrator.generate_audit_package(
+                mock_context,
                 config,
                 test_data["assay_report"],
                 test_data["bom_input"],

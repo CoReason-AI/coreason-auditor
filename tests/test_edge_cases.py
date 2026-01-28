@@ -13,6 +13,9 @@ import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
+
 from coreason_auditor.mocks import MockIdentityService
 from coreason_auditor.models import (
     AgentConfig,
@@ -172,6 +175,7 @@ class TestEdgeCases(unittest.TestCase):
         Verifies complex N:M mapping in Traceability Engine.
         """
         engine = TraceabilityEngine()
+        context = UserContext(user_id=SecretStr("test-user"), roles=[])
 
         req1 = Requirement(req_id="R1", desc="Req 1")
         req2 = Requirement(req_id="R2", desc="Req 2")
@@ -188,7 +192,7 @@ class TestEdgeCases(unittest.TestCase):
         # Assay report might contain extra tests or missing tests (handled in other tests)
         report = AssayReport(results=[t1, t2, t3])
 
-        rtm = engine.generate_matrix(config, report)
+        rtm = engine.generate_matrix(context, config, report)
 
         self.assertEqual(rtm.overall_status, RequirementStatus.COVERED_FAILED)
 
