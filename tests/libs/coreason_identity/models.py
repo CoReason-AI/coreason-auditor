@@ -1,6 +1,9 @@
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+
 from coreason_identity.types import SecretStr
+
 
 class UserContext(BaseModel):
     user_id: SecretStr
