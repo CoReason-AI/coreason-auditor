@@ -50,6 +50,18 @@ def mock_context() -> UserContext:
     return UserContext(user_id=SecretStr("test-user"), roles=[])
 
 
+def test_generate_matrix_missing_context(
+    engine: TraceabilityEngine,
+    basic_requirements: List[Requirement],
+    basic_coverage_map: Dict[str, List[str]],
+) -> None:
+    """Test that generate_matrix raises ValueError when context is missing."""
+    agent_config = AgentConfig(requirements=basic_requirements, coverage_map=basic_coverage_map)
+    assay_report = AssayReport(results=[])
+    with pytest.raises(ValueError, match="UserContext is required"):
+        engine.generate_matrix(None, agent_config, assay_report)  # type: ignore
+
+
 def test_generate_matrix_success(
     engine: TraceabilityEngine,
     basic_requirements: List[Requirement],

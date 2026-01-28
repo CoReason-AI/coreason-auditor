@@ -34,6 +34,11 @@ class TestJobManager(unittest.TestCase):
     def tearDown(self) -> None:
         self.manager.shutdown(wait=False)
 
+    def test_create_job_missing_context(self) -> None:
+        """Test that create_job raises ValueError when context is missing."""
+        with self.assertRaisesRegex(ValueError, "UserContext is required"):
+            self.manager.create_job(None, mock_task, 0.1, "Success")  # type: ignore
+
     def test_submit_and_complete_job(self) -> None:
         """Test happy path for job execution."""
         context = UserContext(user_id=SecretStr("test-user"), roles=[])

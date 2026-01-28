@@ -54,6 +54,12 @@ class TestAIBOMGenerator:
                 # software_dependencies missing
             )  # type: ignore
 
+    def test_generate_bom_missing_context(self, bom_input: BOMInput) -> None:
+        """Test that generate_bom raises ValueError when context is missing."""
+        generator = AIBOMGenerator()
+        with pytest.raises(ValueError, match="UserContext is required"):
+            generator.generate_bom(None, bom_input)  # type: ignore
+
     def test_generate_bom_structure(self, bom_input: BOMInput, mock_context: UserContext) -> None:
         """Test that generate_bom produces a valid AIBOMObject with correct structure."""
         generator = AIBOMGenerator()

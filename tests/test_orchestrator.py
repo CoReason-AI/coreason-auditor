@@ -108,6 +108,30 @@ def setup_mocks(mock_dependencies: Dict[str, MagicMock], test_data: Dict[str, An
 
 
 @pytest.mark.asyncio  # type: ignore[misc]
+async def test_generate_audit_package_missing_context_async(
+    mock_dependencies: Dict[str, MagicMock], test_data: Dict[str, Any]
+) -> None:
+    """Test that generate_audit_package raises ValueError when context is missing."""
+    async with AuditOrchestratorAsync(
+        mock_dependencies["bom_gen"],
+        mock_dependencies["rtm_engine"],
+        mock_dependencies["replayer"],
+        mock_dependencies["signer"],
+        mock_dependencies["pdf_gen"],
+        mock_dependencies["csv_gen"],
+    ) as orchestrator:
+        with pytest.raises(ValueError, match="UserContext is required"):
+            await orchestrator.generate_audit_package(
+                None,  # type: ignore
+                test_data["agent_config"],
+                test_data["assay_report"],
+                test_data["bom_input"],
+                test_data["user_id"],
+                test_data["agent_version"],
+            )
+
+
+@pytest.mark.asyncio  # type: ignore[misc]
 async def test_generate_audit_package_async(
     mock_dependencies: Dict[str, MagicMock],
     test_data: Dict[str, Any],
