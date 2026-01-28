@@ -29,6 +29,8 @@ from coreason_auditor.models import (
 from coreason_auditor.orchestrator import AuditOrchestrator
 from coreason_auditor.session_replayer import SessionReplayer
 from coreason_auditor.utils.seeder import populate_demo_data
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
 
 
 class DummySessionSource(SessionSource):
@@ -155,7 +157,9 @@ class TestSeeder(unittest.TestCase):
 
         # 2. Execute
         # We need valid dummy inputs for the method signature
+        context = UserContext(user_id=SecretStr("test-user"), roles=[])
         package = orchestrator.generate_audit_package(
+            context=context,
             agent_config=AgentConfig(requirements=[], coverage_map={}),
             assay_report=AssayReport(results=[]),
             bom_input=BOMInput(

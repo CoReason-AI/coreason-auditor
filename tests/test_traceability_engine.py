@@ -20,6 +20,8 @@ from coreason_auditor.models import (
     TraceabilityMatrix,
 )
 from coreason_auditor.traceability_engine import TraceabilityEngine
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
 
 
 @pytest.fixture  # type: ignore[misc]
@@ -43,8 +45,28 @@ def engine() -> Generator[TraceabilityEngine, None, None]:
     yield TraceabilityEngine()
 
 
+@pytest.fixture  # type: ignore[misc]
+def mock_context() -> UserContext:
+    return UserContext(user_id=SecretStr("test-user"), roles=[])
+
+
+def test_generate_matrix_missing_context(
+    engine: TraceabilityEngine,
+    basic_requirements: List[Requirement],
+    basic_coverage_map: Dict[str, List[str]],
+) -> None:
+    """Test that generate_matrix raises ValueError when context is missing."""
+    agent_config = AgentConfig(requirements=basic_requirements, coverage_map=basic_coverage_map)
+    assay_report = AssayReport(results=[])
+    with pytest.raises(ValueError, match="UserContext is required"):
+        engine.generate_matrix(None, agent_config, assay_report)  # type: ignore
+
+
 def test_generate_matrix_success(
-    engine: TraceabilityEngine, basic_requirements: List[Requirement], basic_coverage_map: Dict[str, List[str]]
+    engine: TraceabilityEngine,
+    basic_requirements: List[Requirement],
+    basic_coverage_map: Dict[str, List[str]],
+    mock_context: UserContext,
 ) -> None:
     """
     Test a perfect scenario where all requirements are covered and all tests pass.
@@ -61,7 +83,7 @@ def test_generate_matrix_success(
         ]
     )
 
-    rtm = engine.generate_matrix(agent_config, assay_report)
+    rtm = engine.generate_matrix(mock_context, agent_config, assay_report)
 
     assert isinstance(rtm, TraceabilityMatrix)
     assert rtm.overall_status == RequirementStatus.COVERED_PASSED
@@ -69,7 +91,10 @@ def test_generate_matrix_success(
 
 
 def test_generate_matrix_failed_test(
-    engine: TraceabilityEngine, basic_requirements: List[Requirement], basic_coverage_map: Dict[str, List[str]]
+    engine: TraceabilityEngine,
+    basic_requirements: List[Requirement],
+    basic_coverage_map: Dict[str, List[str]],
+    mock_context: UserContext,
 ) -> None:
     """
     Test scenario where one test fails, causing the status to be COVERED_FAILED.
@@ -86,7 +111,7 @@ def test_generate_matrix_failed_test(
         ]
     )
 
-    rtm = engine.generate_matrix(agent_config, assay_report)
+    rtm = engine.generate_matrix(mock_context, agent_config, assay_report)
 
     assert rtm.overall_status == RequirementStatus.COVERED_FAILED
     # Verify the specific test result is preserved
@@ -95,7 +120,10 @@ def test_generate_matrix_failed_test(
 
 
 def test_generate_matrix_missing_test_in_report(
-    engine: TraceabilityEngine, basic_requirements: List[Requirement], basic_coverage_map: Dict[str, List[str]]
+    engine: TraceabilityEngine,
+    basic_requirements: List[Requirement],
+    basic_coverage_map: Dict[str, List[str]],
+    mock_context: UserContext,
 ) -> None:
     """
     Test scenario where a test is defined in the coverage map but missing from the assay report.
@@ -113,7 +141,7 @@ def test_generate_matrix_missing_test_in_report(
         ]
     )
 
-    rtm = engine.generate_matrix(agent_config, assay_report)
+    rtm = engine.generate_matrix(mock_context, agent_config, assay_report)
 
     assert rtm.overall_status == RequirementStatus.COVERED_FAILED
     # Check if T-102 was inserted as a failure
@@ -124,7 +152,7 @@ def test_generate_matrix_missing_test_in_report(
 
 
 def test_generate_matrix_uncovered_requirement(
-    engine: TraceabilityEngine, basic_requirements: List[Requirement]
+    engine: TraceabilityEngine, basic_requirements: List[Requirement], mock_context: UserContext
 ) -> None:
     """
     Test scenario where a requirement has no tests mapped to it.
@@ -145,12 +173,14 @@ def test_generate_matrix_uncovered_requirement(
         ]
     )
 
-    rtm = engine.generate_matrix(agent_config, assay_report)
+    rtm = engine.generate_matrix(mock_context, agent_config, assay_report)
 
     assert rtm.overall_status == RequirementStatus.UNCOVERED
 
 
-def test_integrity_check_failure(engine: TraceabilityEngine, basic_requirements: List[Requirement]) -> None:
+def test_integrity_check_failure(
+    engine: TraceabilityEngine, basic_requirements: List[Requirement], mock_context: UserContext
+) -> None:
     """
     Test that the engine handles cases where coverage map references non-existent requirements.
     """
@@ -171,10 +201,10 @@ def test_integrity_check_failure(engine: TraceabilityEngine, basic_requirements:
     )
 
     with pytest.raises(ValueError, match="Requirement ID '9.9' in coverage_map not found"):
-        engine.generate_matrix(agent_config, assay_report)
+        engine.generate_matrix(mock_context, agent_config, assay_report)
 
 
-def test_many_to_many_mixed_results(engine: TraceabilityEngine) -> None:
+def test_many_to_many_mixed_results(engine: TraceabilityEngine, mock_context: UserContext) -> None:
     """
     Test scenario where:
     - Req A maps to T1, T2
@@ -200,7 +230,7 @@ def test_many_to_many_mixed_results(engine: TraceabilityEngine) -> None:
         ]
     )
 
-    rtm = engine.generate_matrix(config, report)
+    rtm = engine.generate_matrix(mock_context, config, report)
 
     assert rtm.overall_status == RequirementStatus.COVERED_FAILED
 
@@ -211,7 +241,7 @@ def test_many_to_many_mixed_results(engine: TraceabilityEngine) -> None:
     # but the overall status confirms logic.
 
 
-def test_status_precedence_uncovered_vs_failed(engine: TraceabilityEngine) -> None:
+def test_status_precedence_uncovered_vs_failed(engine: TraceabilityEngine, mock_context: UserContext) -> None:
     """
     Test that UNCOVERED takes precedence over COVERED_FAILED.
     Req A: Uncovered.
@@ -234,12 +264,14 @@ def test_status_precedence_uncovered_vs_failed(engine: TraceabilityEngine) -> No
         ]
     )
 
-    rtm = engine.generate_matrix(config, report)
+    rtm = engine.generate_matrix(mock_context, config, report)
 
     assert rtm.overall_status == RequirementStatus.UNCOVERED
 
 
-def test_extra_unmapped_tests_ignored(engine: TraceabilityEngine, basic_requirements: List[Requirement]) -> None:
+def test_extra_unmapped_tests_ignored(
+    engine: TraceabilityEngine, basic_requirements: List[Requirement], mock_context: UserContext
+) -> None:
     """
     Test that tests present in the report but not in the coverage map are ignored
     and do not pollute the resulting matrix tests list.
@@ -254,7 +286,7 @@ def test_extra_unmapped_tests_ignored(engine: TraceabilityEngine, basic_requirem
         ]
     )
 
-    rtm = engine.generate_matrix(config, report)
+    rtm = engine.generate_matrix(mock_context, config, report)
 
     assert rtm.overall_status == RequirementStatus.COVERED_PASSED
     assert len(rtm.tests) == 1
@@ -262,14 +294,14 @@ def test_extra_unmapped_tests_ignored(engine: TraceabilityEngine, basic_requirem
     # T-999 should NOT be in the RTM because it's irrelevant to the requirements
 
 
-def test_empty_configuration(engine: TraceabilityEngine) -> None:
+def test_empty_configuration(engine: TraceabilityEngine, mock_context: UserContext) -> None:
     """
     Test trivial success with empty requirements and tests.
     """
     config = AgentConfig(requirements=[], coverage_map={})
     report = AssayReport(results=[])
 
-    rtm = engine.generate_matrix(config, report)
+    rtm = engine.generate_matrix(mock_context, config, report)
 
     assert rtm.overall_status == RequirementStatus.COVERED_PASSED
     assert len(rtm.tests) == 0
