@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
+
 from coreason_auditor.models import (
     AIBOMObject,
     AuditPackage,
@@ -25,7 +27,6 @@ from coreason_auditor.models import (
     SessionEvent,
     TraceabilityMatrix,
 )
-from pydantic import ValidationError
 
 
 def test_requirement_status_enum() -> None:

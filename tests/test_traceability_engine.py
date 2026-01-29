@@ -11,6 +11,9 @@
 from typing import Dict, Generator, List
 
 import pytest
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
+
 from coreason_auditor.models import (
     AgentConfig,
     AssayReport,
@@ -20,8 +23,6 @@ from coreason_auditor.models import (
     TraceabilityMatrix,
 )
 from coreason_auditor.traceability_engine import TraceabilityEngine
-from coreason_identity.models import UserContext
-from coreason_identity.types import SecretStr
 
 
 @pytest.fixture  # type: ignore[misc]
