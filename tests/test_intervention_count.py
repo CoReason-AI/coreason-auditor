@@ -28,6 +28,8 @@ from coreason_auditor.pdf_generator import PDFReportGenerator
 from coreason_auditor.session_replayer import SessionReplayer
 from coreason_auditor.signer import AuditSigner
 from coreason_auditor.traceability_engine import TraceabilityEngine
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
 
 
 def test_intervention_count_integration() -> None:
@@ -73,7 +75,9 @@ def test_intervention_count_integration() -> None:
     bom_input = Mock(spec=BOMInput)
 
     # Execute
+    context = UserContext(user_id=SecretStr("test-user"), roles=[])
     package = orchestrator.generate_audit_package(
+        context=context,
         agent_config=agent_config,
         assay_report=assay_report,
         bom_input=bom_input,
@@ -125,8 +129,10 @@ def test_intervention_count_source_failure() -> None:
     )
 
     # Execute
+    context = UserContext(user_id=SecretStr("test-user"), roles=[])
     with pytest.raises(Exception, match="DB Connection Failed"):
         orchestrator.generate_audit_package(
+            context=context,
             agent_config=Mock(spec=AgentConfig),
             assay_report=Mock(spec=AssayReport),
             bom_input=Mock(spec=BOMInput),
@@ -165,7 +171,9 @@ def test_intervention_count_large_number() -> None:
         csv_generator=Mock(spec=CSVGenerator),
     )
 
+    context = UserContext(user_id=SecretStr("test-user"), roles=[])
     package = orchestrator.generate_audit_package(
+        context=context,
         agent_config=Mock(spec=AgentConfig),
         assay_report=Mock(spec=AssayReport),
         bom_input=Mock(spec=BOMInput),

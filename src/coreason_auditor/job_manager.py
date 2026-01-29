@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
 
+from coreason_identity.models import UserContext
 from pydantic import BaseModel, Field
 
 from coreason_auditor.utils.logger import logger
@@ -28,6 +29,7 @@ class JobStatus(str, Enum):
 
 class ReportJob(BaseModel):
     job_id: str = Field(..., description="Unique Job ID")
+    owner_id: str = Field(..., description="User ID of the job owner")
     status: JobStatus = Field(default=JobStatus.PENDING)
     submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: Optional[datetime] = None
@@ -45,10 +47,11 @@ class JobManager:
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._jobs: Dict[str, ReportJob] = {}
 
-    def submit_job(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
+    def create_job(self, context: UserContext, func: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
         """Submits a function for asynchronous execution.
 
         Args:
+            context: The user context initiating the job.
             func: The function to execute.
             *args: Positional arguments for func.
             **kwargs: Keyword arguments for func.
@@ -56,11 +59,19 @@ class JobManager:
         Returns:
             The job_id (str).
         """
+        if context is None:
+            raise ValueError("UserContext is required")
+
         job_id = str(uuid.uuid4())
-        job = ReportJob(job_id=job_id, status=JobStatus.PENDING)
+        owner_id = context.user_id.get_secret_value()
+        job = ReportJob(job_id=job_id, owner_id=owner_id, status=JobStatus.PENDING)
         self._jobs[job_id] = job
 
-        logger.info(f"Submitting job {job_id}")
+        logger.info(
+            "Creating audit job",
+            user_id=context.user_id.get_secret_value(),
+            job_id=str(job_id),
+        )
         self._executor.submit(self._worker_wrapper, job_id, func, *args, **kwargs)
         return job_id
 
