@@ -10,6 +10,7 @@
 
 import json
 import time
+from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,21 +27,19 @@ def test_health() -> None:
         assert response.status_code == 200
         assert response.json() == {"status": "ready", "version": "0.1.0"}
 
+
 def test_audit_flow() -> None:
     agent_config = {
         "requirements": [{"req_id": "1.1", "desc": "Test", "critical": True}],
-        "coverage_map": {"1.1": ["T-1"]}
+        "coverage_map": {"1.1": ["T-1"]},
     }
-    assay_report = {
-        "results": [{"test_id": "T-1", "result": "PASS"}],
-        "generated_at": "2025-01-01T00:00:00Z"
-    }
+    assay_report = {"results": [{"test_id": "T-1", "result": "PASS"}], "generated_at": "2025-01-01T00:00:00Z"}
     bom_input = {
         "model_name": "test",
         "model_version": "v1",
         "model_sha": "sha256:123",
         "data_lineage": [],
-        "software_dependencies": []
+        "software_dependencies": [],
     }
 
     files = {
@@ -86,6 +85,7 @@ def test_audit_flow() -> None:
         resp = client.get(f"/audit/download/{job_id}/xml")
         assert resp.status_code == 400
 
+
 def test_audit_generate_invalid_input() -> None:
     with TestClient(app) as client:
         # Missing files
@@ -106,7 +106,7 @@ def test_audit_generate_invalid_input() -> None:
 
         # Valid YAML but Invalid Schema (Triggers ValidationError -> 422)
         # Missing required 'requirements' field in AgentConfig
-        agent_config = {"coverage_map": {}}
+        agent_config: Dict[str, Any] = {"coverage_map": {}}
         files = {
             "agent_config": ("agent.yaml", yaml.dump(agent_config).encode("utf-8"), "application/yaml"),
             "assay_report": ("assay_report.json", b"{}", "application/json"),
@@ -126,6 +126,7 @@ def test_audit_generate_invalid_input() -> None:
         assert resp.status_code == 400
         assert "Agent Config must be a YAML mapping" in resp.json()["detail"]
 
+
 def test_audit_generate_generic_exception() -> None:
     # Mock yaml.safe_load to raise generic Exception
     with patch("yaml.safe_load", side_effect=Exception("Boom")):
@@ -139,6 +140,7 @@ def test_audit_generate_generic_exception() -> None:
             assert resp.status_code == 500
             assert "Boom" in resp.json()["detail"]
 
+
 def test_job_not_found() -> None:
     with TestClient(app) as client:
         resp = client.get("/audit/jobs/invalid-uuid")
@@ -147,19 +149,17 @@ def test_job_not_found() -> None:
         resp = client.get("/audit/download/invalid-uuid/pdf")
         assert resp.status_code == 404
 
+
 def test_download_job_not_completed() -> None:
     # Patch the JobManager class method get_job
     with patch.object(JobManager, "get_job") as mock_get_job:
-        mock_get_job.return_value = ReportJob(
-            job_id="pending-id",
-            owner_id="user",
-            status=JobStatus.PENDING
-        )
+        mock_get_job.return_value = ReportJob(job_id="pending-id", owner_id="user", status=JobStatus.PENDING)
 
         with TestClient(app) as client:
             resp = client.get("/audit/download/pending-id/pdf")
             assert resp.status_code == 400
             assert "Job not completed" in resp.json()["detail"]
+
 
 def test_download_generic_exception() -> None:
     # Patch the JobManager class method get_job
@@ -168,7 +168,7 @@ def test_download_generic_exception() -> None:
             job_id="completed-id",
             owner_id="user",
             status=JobStatus.COMPLETED,
-            result=MagicMock() # AuditPackage mock
+            result=MagicMock(),  # AuditPackage mock
         )
 
         # Patch orchestrator export_to_pdf
@@ -179,11 +179,13 @@ def test_download_generic_exception() -> None:
         # Wait, export_to_pdf is an instance method.
         # Let's try patching the method on the class AuditOrchestratorAsync.
         from coreason_auditor.orchestrator import AuditOrchestratorAsync
+
         with patch.object(AuditOrchestratorAsync, "export_to_pdf", side_effect=Exception("Export Fail")):
             with TestClient(app) as client:
                 resp = client.get("/audit/download/completed-id/pdf")
                 assert resp.status_code == 500
                 assert "Export Fail" in resp.json()["detail"]
+
 
 def test_remove_file_exception() -> None:
     with patch("os.remove", side_effect=Exception("Remove Fail")):
