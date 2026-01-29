@@ -11,6 +11,9 @@
 from unittest.mock import Mock
 
 import pytest
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
+
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.mocks import MockAegisService, MockIdentityService, MockSessionSource
@@ -28,8 +31,6 @@ from coreason_auditor.pdf_generator import PDFReportGenerator
 from coreason_auditor.session_replayer import SessionReplayer
 from coreason_auditor.signer import AuditSigner
 from coreason_auditor.traceability_engine import TraceabilityEngine
-from coreason_identity.models import UserContext
-from coreason_identity.types import SecretStr
 
 
 def test_intervention_count_integration() -> None:

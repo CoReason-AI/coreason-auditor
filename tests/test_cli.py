@@ -16,9 +16,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
+from coreason_identity.models import UserContext
+
 from coreason_auditor.main import main
 from coreason_auditor.models import RiskLevel
-from coreason_identity.models import UserContext
 
 
 @pytest.fixture  # type: ignore[misc]

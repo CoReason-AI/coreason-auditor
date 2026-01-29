@@ -13,6 +13,9 @@ import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
+
 from coreason_auditor.mocks import MockIdentityService
 from coreason_auditor.models import (
     AgentConfig,
@@ -31,8 +34,6 @@ from coreason_auditor.models import (
 from coreason_auditor.pdf_generator import PDFReportGenerator
 from coreason_auditor.signer import AuditSigner
 from coreason_auditor.traceability_engine import TraceabilityEngine
-from coreason_identity.models import UserContext
-from coreason_identity.types import SecretStr
 
 
 class TestEdgeCases(unittest.TestCase):
