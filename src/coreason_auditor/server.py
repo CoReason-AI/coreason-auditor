@@ -11,9 +11,8 @@
 import json
 import os
 import tempfile
-import uuid
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Dict, Union
+from typing import Annotated, AsyncGenerator, Dict, cast
 
 import anyio
 import yaml
@@ -101,16 +100,19 @@ def run_audit_generation_sync(
     max_deviations: int,
 ) -> AuditPackage:
     """Synchronous wrapper to run async generation in a thread."""
-    return anyio.run(
-        orchestrator.generate_audit_package,
-        context,
-        agent_config,
-        assay_report,
-        bom_input,
-        user_id,
-        agent_version,
-        risk_threshold,
-        max_deviations,
+    return cast(
+        AuditPackage,
+        anyio.run(
+            orchestrator.generate_audit_package,
+            context,
+            agent_config,
+            assay_report,
+            bom_input,
+            user_id,
+            agent_version,
+            risk_threshold,
+            max_deviations,
+        ),
     )
 
 
@@ -121,11 +123,11 @@ def remove_file(path: str) -> None:
         logger.error(f"Failed to remove temp file {path}: {e}")
 
 
-@app.post("/audit/generate", status_code=202)
+@app.post("/audit/generate", status_code=202)  # type: ignore[misc]
 async def generate_audit(
-    agent_config: UploadFile = File(...),
-    assay_report: UploadFile = File(...),
-    bom_input: UploadFile = File(...),
+    agent_config: Annotated[UploadFile, File(...)],
+    assay_report: Annotated[UploadFile, File(...)],
+    bom_input: Annotated[UploadFile, File(...)],
 ) -> Dict[str, str]:
     """
     Submits an audit generation job.
@@ -150,9 +152,7 @@ async def generate_audit(
         # Use a system context for the server
         # In a real microservice, we would extract user info from headers/auth token
         user_id = "api-user"
-        context = UserContext(
-            user_id=SecretStr(user_id), roles=["system"], metadata={"source": "api"}
-        )
+        context = UserContext(user_id=SecretStr(user_id), roles=["system"], metadata={"source": "api"})
 
         # Default values (could be parameterized)
         agent_version = "1.0.0"  # Ideally extracted from input or param
@@ -179,17 +179,17 @@ async def generate_audit(
         return {"job_id": job_id, "status": "PENDING"}
 
     except (yaml.YAMLError, json.JSONDecodeError) as e:
-        raise HTTPException(status_code=400, detail=f"Invalid file format: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid file format: {str(e)}") from e
     except ValidationError as e:
-        raise HTTPException(status_code=422, detail=f"Validation error: {str(e)}")
+        raise HTTPException(status_code=422, detail=f"Validation error: {str(e)}") from e
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Error submitting job")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.get("/audit/jobs/{job_id}", response_model=ReportJob)
+@app.get("/audit/jobs/{job_id}", response_model=ReportJob)  # type: ignore[misc]
 async def get_job_status(job_id: str) -> ReportJob:
     """Retrieves the status of a job."""
     job_manager: JobManager = app.state.job_manager
@@ -205,10 +205,8 @@ async def get_job_status(job_id: str) -> ReportJob:
     return job
 
 
-@app.get("/audit/download/{job_id}/{format}")
-async def download_report(
-    job_id: str, format: str, background_tasks: BackgroundTasks
-) -> FileResponse:
+@app.get("/audit/download/{job_id}/{format}")  # type: ignore[misc]
+async def download_report(job_id: str, format: str, background_tasks: BackgroundTasks) -> FileResponse:
     """Downloads the generated report in PDF or CSV format."""
     if format not in ["pdf", "csv"]:
         raise HTTPException(status_code=400, detail="Invalid format. Use 'pdf' or 'csv'.")
@@ -243,16 +241,14 @@ async def download_report(
         background_tasks.add_task(remove_file, output_path)
 
         return FileResponse(
-            output_path,
-            filename=filename,
-            media_type="application/pdf" if format == "pdf" else "text/csv"
+            output_path, filename=filename, media_type="application/pdf" if format == "pdf" else "text/csv"
         )
 
     except Exception as e:
         logger.exception("Error generating download")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.get("/health")
+@app.get("/health")  # type: ignore[misc]
 async def health_check() -> Dict[str, str]:
     return {"status": "ready", "version": "0.1.0"}

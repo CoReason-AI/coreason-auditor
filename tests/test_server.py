@@ -10,31 +10,33 @@
 
 import json
 import time
+
+import pytest
 import yaml
 from fastapi.testclient import TestClient
+
 from coreason_auditor.server import app
 
-def test_health():
+
+def test_health() -> None:
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ready", "version": "0.1.0"}
 
-def test_audit_flow():
+
+def test_audit_flow() -> None:
     agent_config = {
         "requirements": [{"req_id": "1.1", "desc": "Test", "critical": True}],
-        "coverage_map": {"1.1": ["T-1"]}
+        "coverage_map": {"1.1": ["T-1"]},
     }
-    assay_report = {
-        "results": [{"test_id": "T-1", "result": "PASS"}],
-        "generated_at": "2025-01-01T00:00:00Z"
-    }
+    assay_report = {"results": [{"test_id": "T-1", "result": "PASS"}], "generated_at": "2025-01-01T00:00:00Z"}
     bom_input = {
         "model_name": "test",
         "model_version": "v1",
         "model_sha": "sha256:123",
         "data_lineage": [],
-        "software_dependencies": []
+        "software_dependencies": [],
     }
 
     files = {
@@ -59,7 +61,7 @@ def test_audit_flow():
             if status == "COMPLETED":
                 break
             if status == "FAILED":
-                assert False, f"Job failed: {resp.json().get('error')}"
+                pytest.fail(f"Job failed: {resp.json().get('error')}")
             time.sleep(0.1)
 
         assert status == "COMPLETED"
@@ -80,7 +82,8 @@ def test_audit_flow():
         resp = client.get(f"/audit/download/{job_id}/xml")
         assert resp.status_code == 400
 
-def test_audit_generate_invalid_input():
+
+def test_audit_generate_invalid_input() -> None:
     with TestClient(app) as client:
         # Missing files
         resp = client.post("/audit/generate", files={})
@@ -96,7 +99,8 @@ def test_audit_generate_invalid_input():
         # YAML parser error handling
         assert resp.status_code == 400
 
-def test_job_not_found():
+
+def test_job_not_found() -> None:
     with TestClient(app) as client:
         resp = client.get("/audit/jobs/invalid-uuid")
         # JobManager uses dict.get, returns None
