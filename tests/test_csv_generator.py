@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
 from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.models import ConfigChange
 

@@ -11,6 +11,9 @@
 import unittest
 from unittest.mock import MagicMock
 
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
+
 from coreason_auditor.csv_generator import CSVGenerator
 from coreason_auditor.interfaces import SessionSource
 from coreason_auditor.mocks import MockAegisService, MockSessionSource
@@ -29,8 +32,6 @@ from coreason_auditor.models import (
 from coreason_auditor.orchestrator import AuditOrchestrator
 from coreason_auditor.session_replayer import SessionReplayer
 from coreason_auditor.utils.seeder import populate_demo_data
-from coreason_identity.models import UserContext
-from coreason_identity.types import SecretStr
 
 
 class DummySessionSource(SessionSource):
