@@ -15,6 +15,7 @@ from typing import Optional, cast
 import anyio
 import httpx
 from anyio import to_thread
+from coreason_identity.models import UserContext
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
 from coreason_auditor.csv_generator import CSVGenerator
@@ -67,6 +68,7 @@ class AuditOrchestratorAsync:
 
     async def generate_audit_package(
         self,
+        context: UserContext,
         agent_config: AgentConfig,
         assay_report: AssayReport,
         bom_input: BOMInput,
@@ -78,6 +80,7 @@ class AuditOrchestratorAsync:
         """Orchestrates the creation of the Audit Package.
 
         Args:
+            context: The user context requesting the audit.
             agent_config: Requirements and coverage map.
             assay_report: Test results.
             bom_input: Model inventory data.
@@ -92,13 +95,19 @@ class AuditOrchestratorAsync:
         Raises:
             ComplianceViolationError: If critical requirements are uncovered.
         """
-        logger.info(f"Starting Audit Package generation for Agent v{agent_version} by {user_id}")
+        if context is None:
+            raise ValueError("UserContext is required")
+
+        logger.info(
+            f"Starting Audit Package generation for Agent v{agent_version}",
+            user_id=context.user_id.get_secret_value(),
+        )
 
         # 1. Generate AI-BOM
-        bom = await to_thread.run_sync(self.aibom_generator.generate_bom, bom_input)
+        bom = await to_thread.run_sync(self.aibom_generator.generate_bom, context, bom_input)
 
         # 2. Generate Traceability Matrix
-        rtm = await to_thread.run_sync(self.traceability_engine.generate_matrix, agent_config, assay_report)
+        rtm = await to_thread.run_sync(self.traceability_engine.generate_matrix, context, agent_config, assay_report)
 
         # CRITICAL: Enforce coverage for critical requirements
         for req in rtm.requirements:
@@ -188,6 +197,7 @@ class AuditOrchestrator:
 
     def generate_audit_package(
         self,
+        context: UserContext,
         agent_config: AgentConfig,
         assay_report: AssayReport,
         bom_input: BOMInput,
@@ -199,6 +209,7 @@ class AuditOrchestrator:
         """Sync wrapper for generate_audit_package."""
         result = anyio.run(
             self._async.generate_audit_package,
+            context,
             agent_config,
             assay_report,
             bom_input,

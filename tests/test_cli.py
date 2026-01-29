@@ -18,6 +18,7 @@ import pytest
 import yaml
 from coreason_auditor.main import main
 from coreason_auditor.models import RiskLevel
+from coreason_identity.models import UserContext
 
 
 @pytest.fixture  # type: ignore[misc]
@@ -375,6 +376,7 @@ def test_cli_env_var_override(sample_inputs: Dict[str, Path], capsys: Any) -> No
             call_kwargs = instance.generate_audit_package.call_args[1]
             assert call_kwargs["risk_threshold"] == RiskLevel.LOW
             assert call_kwargs["user_id"] == "env-user"
+            assert isinstance(call_kwargs["context"], UserContext)
 
 
 def test_complex_scenario_cli(sample_inputs: Dict[str, Path], capsys: Any) -> None:
@@ -418,6 +420,7 @@ def test_complex_scenario_cli(sample_inputs: Dict[str, Path], capsys: Any) -> No
         assert call_kwargs["agent_version"] == "2.5.0-beta"
         assert call_kwargs["user_id"] == "compliance-officer-alice"
         assert call_kwargs["risk_threshold"] == RiskLevel.CRITICAL
+        assert isinstance(call_kwargs["context"], UserContext)
 
 
 def test_cli_bom_export_io_error(sample_inputs: Dict[str, Path], capsys: Any) -> None:
