@@ -11,9 +11,10 @@
 import time
 import unittest
 
-from coreason_auditor.job_manager import JobManager, JobStatus
 from coreason_identity.models import UserContext
 from coreason_identity.types import SecretStr
+
+from coreason_auditor.job_manager import JobManager, JobStatus
 
 
 def mock_task(duration: float, result_val: str) -> str:

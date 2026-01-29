@@ -21,6 +21,8 @@ try:
 except ImportError:
     PdfReader = None
 
+from pydantic import ValidationError
+
 from coreason_auditor.mocks import MockSessionSource
 from coreason_auditor.models import (
     AIBOMObject,
@@ -30,7 +32,6 @@ from coreason_auditor.models import (
     TraceabilityMatrix,
 )
 from coreason_auditor.pdf_generator import PDFReportGenerator
-from pydantic import ValidationError
 
 
 class TestConfigChangeEdgeCases(unittest.TestCase):
