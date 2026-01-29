@@ -22,6 +22,7 @@ Based on the [Product Requirements](docs/product_requirements.md):
 *   **Session Replayer:** Forensic tool that reconstructs user sessions, displaying hidden "Thought Chains" and "Tool Calls" alongside user input.
 *   **21 CFR Part 11 Signer:** Applies digital signatures to exported reports for immutability and authenticity.
 *   **Deviation Reporting:** Prioritizes failures and interventions (Exception-First Reporting).
+*   **Service C Microservice:** Asynchronous REST API for high-volume audit generation (FastAPI + Uvicorn).
 
 ## Installation
 
@@ -31,33 +32,16 @@ pip install coreason-auditor
 
 ## Usage
 
-```python
-from pathlib import Path
-from coreason_auditor.orchestrator import AuditOrchestrator
-from coreason_auditor.models import AgentConfig, AssayReport, BOMInput
+Please refer to the [Usage Guide](docs/usage.md) for detailed instructions on both **CLI Mode** and **Server Mode**.
 
-# Initialize Orchestrator (Dependencies injected via DI container in production)
-orchestrator = AuditOrchestrator(...)
+### Quick Start (Server)
 
-# Load Inputs
-agent_config = AgentConfig(...)
-assay_report = AssayReport(...)
-bom_input = BOMInput(...)
-
-# Generate Signed Audit Package
-package = orchestrator.generate_audit_package(
-    agent_config=agent_config,
-    assay_report=assay_report,
-    bom_input=bom_input,
-    user_id="compliance_officer_01",
-    agent_version="1.2.0"
-)
-
-# Export to PDF
-orchestrator.export_to_pdf(package, "audit_report_v1.2.0.pdf")
+```bash
+# Start the API server
+uvicorn coreason_auditor.server:app --host 0.0.0.0 --port 8000
 ```
 
-For CLI usage:
+### Quick Start (CLI)
 
 ```bash
 python -m coreason_auditor.main \
