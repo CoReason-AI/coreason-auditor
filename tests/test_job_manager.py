@@ -12,6 +12,8 @@ import time
 import unittest
 
 from coreason_auditor.job_manager import JobManager, JobStatus
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
 
 
 def mock_task(duration: float, result_val: str) -> str:
@@ -32,14 +34,21 @@ class TestJobManager(unittest.TestCase):
     def tearDown(self) -> None:
         self.manager.shutdown(wait=False)
 
+    def test_create_job_missing_context(self) -> None:
+        """Test that create_job raises ValueError when context is missing."""
+        with self.assertRaisesRegex(ValueError, "UserContext is required"):
+            self.manager.create_job(None, mock_task, 0.1, "Success")  # type: ignore
+
     def test_submit_and_complete_job(self) -> None:
         """Test happy path for job execution."""
-        job_id = self.manager.submit_job(mock_task, 0.1, "Success")
+        context = UserContext(user_id=SecretStr("test-user"), roles=[])
+        job_id = self.manager.create_job(context, mock_task, 0.1, "Success")
 
         # Check immediate status (might be PENDING or RUNNING)
         job = self.manager.get_job(job_id)
         assert job is not None
         self.assertIn(job.status, [JobStatus.PENDING, JobStatus.RUNNING])
+        self.assertEqual(job.owner_id, "test-user")
 
         # Wait for completion
         self._wait_for_job(job_id)
@@ -52,7 +61,8 @@ class TestJobManager(unittest.TestCase):
 
     def test_job_failure(self) -> None:
         """Test error handling."""
-        job_id = self.manager.submit_job(mock_failing_task)
+        context = UserContext(user_id=SecretStr("test-user"), roles=[])
+        job_id = self.manager.create_job(context, mock_failing_task)
 
         self._wait_for_job(job_id)
 

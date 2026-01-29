@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 import yaml
+from coreason_identity.models import UserContext
+from coreason_identity.types import SecretStr
 from pydantic import ValidationError
 
 from coreason_auditor.aibom_generator import AIBOMGenerator
@@ -114,6 +116,8 @@ def main() -> None:
             logger.error(f"Invalid risk threshold: {args.risk_threshold}")
             sys.exit(1)
 
+        system_context = UserContext(user_id=SecretStr("cli-user"), roles=["system"], metadata={"source": "cli"})
+
         with AuditOrchestrator(
             aibom_generator=aibom_generator,
             traceability_engine=traceability_engine,
@@ -123,6 +127,7 @@ def main() -> None:
             csv_generator=csv_generator,
         ) as orchestrator:
             package = orchestrator.generate_audit_package(
+                context=system_context,
                 agent_config=agent_config,
                 assay_report=assay_report,
                 bom_input=bom_input,

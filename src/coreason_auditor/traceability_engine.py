@@ -10,6 +10,8 @@
 
 from typing import Dict, List, Set
 
+from coreason_identity.models import UserContext
+
 from coreason_auditor.models import (
     AgentConfig,
     AssayReport,
@@ -23,10 +25,13 @@ from coreason_auditor.utils.logger import logger
 class TraceabilityEngine:
     """Core engine for mapping requirements to test results and generating the Traceability Matrix."""
 
-    def generate_matrix(self, agent_config: AgentConfig, assay_report: AssayReport) -> TraceabilityMatrix:
+    def generate_matrix(
+        self, context: UserContext, agent_config: AgentConfig, assay_report: AssayReport
+    ) -> TraceabilityMatrix:
         """Generates a TraceabilityMatrix from the given AgentConfig and AssayReport.
 
         Args:
+            context: The user context requesting the matrix.
             agent_config: The configuration containing requirements and the coverage map.
             assay_report: The report containing test results.
 
@@ -36,7 +41,10 @@ class TraceabilityEngine:
         Raises:
             ValueError: If integrity checks fail (handled by Pydantic model validation).
         """
-        logger.info("Generating Traceability Matrix...")
+        if context is None:
+            raise ValueError("UserContext is required")
+
+        logger.info("Generating Traceability Matrix", user_id=context.user_id.get_secret_value())
 
         # 1. Gather all unique Test IDs from the Coverage Map to know which tests are relevant
         required_test_ids: Set[str] = set()
