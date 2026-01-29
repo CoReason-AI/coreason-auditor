@@ -35,3 +35,9 @@ COPY --from=builder /wheels /wheels
 
 # Install the application wheel
 RUN pip install --no-cache-dir /wheels/*.whl
+
+# Copy local libs (mocks/stubs for standalone mode)
+COPY tests/libs /app/libs
+ENV PYTHONPATH="/app/libs:${PYTHONPATH}"
+
+CMD ["uvicorn", "coreason_auditor.server:app", "--host", "0.0.0.0", "--port", "8000"]
